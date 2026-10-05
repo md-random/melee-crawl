@@ -7,7 +7,14 @@ import type { Phase } from './battle'
  * Dice box, Action tab and Log tab all subscribe to the same stream.
  */
 export type GameEvent = { round: number; at: number } & (
-  | { kind: 'roll'; purpose: string; actor?: Id; dice: number[]; total: number; target?: number; success?: boolean; special?: 'double' | 'triple' | 'fumble' | 'drop' }
+  | {
+      kind: 'roll'; purpose: string; actor?: Id; dice: number[]; total: number; target?: number; success?: boolean
+      special?: 'double' | 'triple' | 'fumble' | 'drop'
+      /** How the target number (to-hit) or total (damage) was built, e.g. DX 12, Leather −2, rear +4. */
+      parts?: { label: string; value: number }[]
+      /** Anything else that shaped the roll, e.g. "Bear is defending: 4 dice". */
+      note?: string
+    }
   | { kind: 'phase'; phase: Phase }
   | { kind: 'move'; unit: Id; from: Hex; to: Hex }
   | { kind: 'face'; unit: Id; facing: number }

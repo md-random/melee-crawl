@@ -49,13 +49,20 @@ export interface ActionDef {
   id: Id
   label: string
   icon: string
+  /** One line for the action menu: what it does. */
+  hint: string
   /** 'select' takes effect when chosen (defend, dodge); 'resolve' acts in adjDX order. */
   timing: 'select' | 'resolve'
   /** Needs a target chosen when it resolves; with none left, the action is lost. */
   targeted: boolean
   /** Concrete variants: one per known spell or belt item; one plain choice otherwise. */
   choices(actor: Unit): ChosenAction[]
-  /** TFT option rules: engaged/disengaged, hexes moved, etc. */
+  /**
+   * Why the action can't be taken now (TFT option rules: engaged, disengaged,
+   * hexes moved...), in plain words for the player; undefined when it can.
+   */
+  unavailable(ctx: ActionContext): string | undefined
+  /** Same rule as `unavailable`, as a yes/no. */
   isAvailable(ctx: ActionContext): boolean
   /** Unit uids or hex keys. Empty for self-only actions. */
   targets(ctx: ActionContext): (Id | HexKey)[]

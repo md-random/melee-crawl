@@ -118,7 +118,24 @@ describe('facing and engagement', () => {
     me.turn.hexesMoved = 1
     expect(hasDisengaged(s, me)).toBe(true)
     expect(ACTIONS.attack!.isAvailable(ctx(s, me, 'attack'))).toBe(false)
+    expect(ACTIONS.attack!.unavailable(ctx(s, me, 'attack'))).toMatch(/disengaged/)
     expect(ACTIONS.defend!.isAvailable(ctx(s, me, 'defend'))).toBe(true)
+  })
+
+  it('explains why an attack is unavailable', () => {
+    const s = arena()
+    const { me, foe } = unitsOf(s)
+    place(foe, CENTER, 1)
+    place(me, neighbor(CENTER, 1), 1) // next to the orc, facing away from it
+    expect(ACTIONS.attack!.unavailable(ctx(s, me, 'attack'))).toMatch(/front hexes/)
+    place(me, neighbor(CENTER, 1), 4) // now facing it
+    expect(ACTIONS.attack!.unavailable(ctx(s, me, 'attack'))).toBeUndefined()
+    me.turn.hexesMoved = 10
+    expect(ACTIONS.attack!.unavailable(ctx(s, me, 'attack'))).toMatch(/half your MA/)
+    // The yes/no check always agrees with the reason.
+    for (const def of Object.values(ACTIONS)) {
+      expect(def.isAvailable(ctx(s, me, def.id)), def.id).toBe(!def.unavailable(ctx(s, me, def.id)))
+    }
   })
 })
 

@@ -252,15 +252,30 @@ export function damageOdds(d: DiceExpr, bonus: number, stopped: number, atLeast:
 
 // ---------- attacks ----------
 
+export interface RollPart { label: string; value: number }
+
+/** What the to-hit number is made of: adjusted DX, then position and range. */
+export function toHitParts(state: BattleState, attacker: Unit, target: Unit, attack: Attack): RollPart[] {
+  const ctx = { state, target, attack }
+  const attrs = { ST: attacker.base.ST, DX: attacker.base.DX + modifierTotal(attacker, 'DX', ctx), IQ: attacker.base.IQ }
+  const parts: RollPart[] = adjustedDx(attrs, attacker.talents, unitLoadout(attacker)).parts.map(p => ({ ...p }))
+  const adj = modifierTotal(attacker, 'adjDX', ctx)
+  if (adj) parts.push({ label: 'Effects', value: adj })
+  const toHit = modifierTotal(attacker, 'toHit', ctx)
+  if (toHit) parts.push({ label: 'To-hit bonus', value: toHit })
+  const arc = arcOf(target.pos, target.facing, attacker.pos)
+  if (arc === 'side') parts.push({ label: 'Side attack', value: COMBAT.sideAttackBonus })
+  else if (arc === 'rear') parts.push({ label: 'Rear attack', value: COMBAT.rearAttackBonus })
+  if (isRanged(attack)) {
+    const penalty = Math.floor(hexDistance(attacker.pos, target.pos) / COMBAT.rangePenaltyHexes)
+    if (penalty) parts.push({ label: 'Range', value: -penalty })
+  }
+  return parts
+}
+
 /** Number to roll at or under on the attack dice. */
 export function toHitTarget(state: BattleState, attacker: Unit, target: Unit, attack: Attack): number {
-  const ctx = { state, target, attack }
-  let t = adjDxOf(attacker, ctx) + modifierTotal(attacker, 'toHit', ctx)
-  const arc = arcOf(target.pos, target.facing, attacker.pos)
-  if (arc === 'side') t += COMBAT.sideAttackBonus
-  else if (arc === 'rear') t += COMBAT.rearAttackBonus
-  if (isRanged(attack)) t -= Math.floor(hexDistance(attacker.pos, target.pos) / COMBAT.rangePenaltyHexes)
-  return t
+  return toHitParts(state, attacker, target, attack).reduce((s, p) => s + p.value, 0)
 }
 
 export function attackDice(target: Unit, attack: Attack): number {

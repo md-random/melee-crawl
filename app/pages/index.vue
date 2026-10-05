@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import type { DiceExpr, Facing, GameEvent, Hex, HexKey, OwnedTalent, TalentCategory, Unit } from '#shared/types'
 import { ARCHETYPES } from '#shared/data/creatures'
-import { ITEMS } from '#shared/data/items'
-import { SPELLS } from '#shared/data/spells'
 import { TALENTS } from '#shared/data/talents'
 import { TRAITS } from '#shared/data/traits'
-import { ACTIONS, contextFor, parseChoiceKey, toTarget } from '#shared/engine/actions'
+import { toTarget } from '#shared/engine/actions'
 import type { PlayerInput } from '#shared/engine/battle'
 import {
   adjDxOf, directionTo, hitsStoppedOf, isAlive, mapOf, maOf, movementObstructions, obstructions, readyAttack, unitLoadout
@@ -13,7 +11,6 @@ import {
 import { findPath, lineOfSight } from '#shared/engine/pathfinding'
 import { adjustedDx } from '#shared/engine/rules'
 import { hexEquals, hexKey } from '#shared/utils/hex'
-import { createRng } from '#shared/utils/rng'
 import { FACING_NAMES, PHASE_NAMES, describeEvent } from '~/composables/battleText'
 import { useGameStore } from '~/stores/game'
 
@@ -139,35 +136,6 @@ function onSelect(h: Hex) {
 
 // ---------- action tab ----------
 
-const actionOptions = computed(() => {
-  const p = pending.value
-  if (p?.kind !== 'chooseAction') return []
-  return p.actions.map(key => {
-    const c = parseChoiceKey(key)
-    const def = ACTIONS[c.actionId]
-    const inst = c.itemUid ? active.value?.inventory.find(i => i.uid === c.itemUid) : undefined
-    const extra = c.spellId ? SPELLS[c.spellId]?.name : inst ? ITEMS[inst.defId]?.name : undefined
-    return { key, label: `${def?.icon ?? ''} ${def?.label ?? c.actionId}${extra ? `: ${extra}` : ''}` }
-  })
-})
-
-const targetOptions = computed(() => {
-  const p = pending.value
-  const b = battle.value
-  const u = active.value
-  if (p?.kind !== 'chooseTarget' || !b || !u?.turn.action) return []
-  const def = ACTIONS[p.actionId]
-  if (!def) return []
-  // Estimates never roll dice; a throwaway RNG keeps the battle's own untouched.
-  const ctx = contextFor(b, u, u.turn.action, createRng({ seed: 0, calls: 0 }))
-  return p.targets.map(t => {
-    const target = toTarget(b, t)
-    const est = def.estimate(ctx, target)
-    const who = target.unit ? b.units[target.unit]?.name : t
-    return { id: t, label: who ?? t, hit: Math.round(est.hitChance * 100), damage: est.damage.toFixed(1) }
-  })
-})
-
 const prompt = computed(() => {
   const p = pending.value
   const u = active.value
@@ -175,7 +143,7 @@ const prompt = computed(() => {
   switch (p.kind) {
     case 'move': return `${u.name}: click a lit hex to move (MA ${maOf(u)}), or your own hex to stay.`
     case 'chooseFacing': return `${u.name}: click a hex to face it, or pick a direction.`
-    case 'chooseAction': return `${u.name}: choose an action. Moved ${u.turn.hexesMoved} hex${u.turn.hexesMoved === 1 ? '' : 'es'}.`
+    case 'chooseAction': return `${u.name}: choose an action.`
     case 'chooseTarget': return `${u.name}: choose a target.`
   }
   return ''
@@ -294,7 +262,16 @@ function abandon() {
           @hover="hovered = $event"
           @select="onSelect"
         />
+        <ResolutionPanel :battle="battle" :events="events" />
       </section>
+
+      <ActionModal
+        :battle="battle"
+        :pending="pending"
+        :unit="active"
+        @action="send({ kind: 'action', choice: $event })"
+        @target="send({ kind: 'target', target: $event })"
+      />
 
       <section class="box bottom">
         <div class="tabs">
@@ -316,15 +293,7 @@ function abandon() {
             <div v-if="pending?.kind === 'chooseFacing'" class="controls">
               <button v-for="(n, f) in FACING_NAMES" :key="n" @click="send({ kind: 'face', facing: f as Facing })">{{ n }}</button>
             </div>
-            <div v-else-if="pending?.kind === 'chooseAction'" class="controls">
-              <button v-for="a in actionOptions" :key="a.key" @click="send({ kind: 'action', choice: a.key })">{{ a.label }}</button>
-            </div>
-            <div v-else-if="pending?.kind === 'chooseTarget'" class="controls">
-              <button v-for="t in targetOptions" :key="t.id" @click="send({ kind: 'target', target: t.id })">
-                {{ t.label }} · {{ t.hit }}% to hit · ~{{ t.damage }} damage
-              </button>
-            </div>
-            <p v-if="error" class="error">{{ error }}</p>
+                    <p v-if="error" class="error">{{ error }}</p>
           </template>
           <ul class="narration">
             <li v-for="e in narration" :key="e.at">{{ e.kind === 'narrate' ? e.text : '' }}</li>
