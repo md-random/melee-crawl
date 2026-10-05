@@ -3,6 +3,7 @@ import type { Requirement } from '#shared/types'
 import { ARCHETYPES, CREATURES, archetypesFor } from '#shared/data/creatures'
 import { ITEMS } from '#shared/data/items'
 import { TALENTS } from '#shared/data/talents'
+import { TRAITS } from '#shared/data/traits'
 
 function talentRefs(req?: Requirement): string[] {
   if (!req) return []
@@ -29,6 +30,10 @@ describe('data integrity', () => {
   it('creatures and archetypes reference existing talents, items and bases', () => {
     for (const c of Object.values(CREATURES)) {
       for (const t of c.baseTalents) expect(TALENTS[t.id], `${c.id} → ${t.id}`).toBeDefined()
+      for (const t of c.traits) {
+        expect(TRAITS[t.id], `${c.id} → trait ${t.id}`).toBeDefined()
+        expect(t.rank, `${c.id} → trait ${t.id} rank`).toBeLessThanOrEqual(TRAITS[t.id]!.maxRanks)
+      }
       expect(archetypesFor(c).length, `${c.id} has an archetype`).toBeGreaterThan(0)
     }
     for (const a of Object.values(ARCHETYPES)) {

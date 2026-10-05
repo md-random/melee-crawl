@@ -1,5 +1,6 @@
 import type { AttrKey, DiceExpr, Id } from './core'
 import type { OwnedTalent } from './talents'
+import type { OwnedTrait } from './traits'
 
 export interface NaturalWeapon {
   name: string                 // bite, claw, gore
@@ -22,6 +23,8 @@ export interface CreatureBase {
   naturalWeapons: NaturalWeapon[]
   naturalHitsStopped: number
   baseTalents: OwnedTalent[]
+  /** Innate abilities (data/traits.ts); fixed, never bought. */
+  traits: OwnedTrait[]
   canUseItems: boolean         // orcs yes, wolves no
   hexSize: 1                   // widen to 1 | 3 | 7 when multi-hex lands
   xpValue: number

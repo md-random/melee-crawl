@@ -21,12 +21,22 @@ describe('buildOpponent', () => {
     expect(buildOpponent({ ...spec, budget: { attrPoints: 8, xp: 3000 } }).name).toBe('Orc Chieftain')
   })
 
-  it('buys creature talents for beasts and puts the title first', () => {
+  it('turns a beast\'s XP into attribute points, keeps its traits, and puts the title first', () => {
     const wolf = buildOpponent({ baseId: 'wolf', archetypeId: 'pack', budget: { attrPoints: 4, xp: 1500 }, seed: 1 })
-    expect(wolf.name).toBe('Alpha Wolf') // 4 attr + 3 talents' worth of XP = 7
-    expect(wolf.talents.map(t => t.id)).toEqual(expect.arrayContaining(['swift', 'thickHide', 'keenSenses']))
+    expect(wolf.name).toBe('Alpha Wolf') // 4 attr + 3 points from 1500 XP = 7
+    const base = CREATURES.wolf!.attrs
+    expect(wolf.attrs.ST + wolf.attrs.DX + wolf.attrs.IQ).toBe(base.ST + base.DX + base.IQ + 4 + 3)
+    expect(wolf.talents).toEqual([])
+    expect(wolf.traits.map(t => t.id)).toEqual(['keenSenses', 'packTactics'])
     expect(wolf.weapon).toBeUndefined()
-    expect(wolf.ma).toBe(14)
+    expect(wolf.ma).toBe(12)
+  })
+
+  it('counts trait bonuses toward MA and armor', () => {
+    const rat = buildOpponent({ baseId: 'giantRat', archetypeId: 'lurker', budget: { attrPoints: 0, xp: 0 }, seed: 1 })
+    expect(rat.ma).toBe(CREATURES.giantRat!.attrs.MA + 2) // Swift
+    const bear = buildOpponent({ baseId: 'bear', archetypeId: 'pack', budget: { attrPoints: 0, xp: 0 }, seed: 1 })
+    expect(bear.hitsStopped).toBe(CREATURES.bear!.naturalHitsStopped + 1) // Thick Hide
   })
 
   it('never produces an illegal build across many seeds and budgets', () => {

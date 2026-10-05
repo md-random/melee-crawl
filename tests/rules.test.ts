@@ -17,12 +17,11 @@ describe('talents', () => {
     expect(hasTalent(addTalent([], 'sword'), 'dagger')).toBe(false)
   })
 
-  it('enforces min IQ, IQ budget, attribute gates and creature-only talents', () => {
+  it('enforces min IQ, IQ budget and attribute gates', () => {
     expect(canTakeTalent(TALENTS.running!, hero()).ok).toBe(true)
     expect(canTakeTalent(TALENTS.toughness!, hero()).reasons).toContain('Needs IQ 9 (have 8)')
     const full = addTalent(addTalent(addTalent([], 'sword'), 'shield'), 'running') // 2 + 1 + 2 = 5
     expect(canTakeTalent(TALENTS.axMace!, hero(addTalent(full, 'bow'))).ok).toBe(false)
-    expect(canTakeTalent(TALENTS.thickHide!, hero()).reasons).toContain('Creature only')
     const smart = { ST: 13, DX: 12, IQ: 12 }
     expect(canTakeTalent(TALENTS.toughness!, hero([], smart)).ok).toBe(true)
     expect(canTakeTalent(TALENTS.toughness2!, hero([], smart)).reasons).toContain('Needs Toughness I')

@@ -3,6 +3,7 @@ import type { ActiveEffect, OverlayId, StatusId } from './effects'
 import type { AiProfileId, Biome, NaturalWeapon, OpponentSpec } from './creatures'
 import type { Equipment, ItemInstance } from './items'
 import type { OwnedTalent } from './talents'
+import type { OwnedTrait } from './traits'
 
 // ---------- map ----------
 
@@ -48,6 +49,7 @@ export interface Unit {
   base: Attributes & { MA: number }
   stCurrent: number
   talents: OwnedTalent[]
+  traits: OwnedTrait[]
   inventory: ItemInstance[]
   equipped: Equipment
   naturalWeapons: NaturalWeapon[]

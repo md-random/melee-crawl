@@ -4,12 +4,13 @@ import type {
 import { ARCHETYPES, CREATURES } from '../data/creatures'
 import { BASE_MA } from '../data/progression'
 import { TALENTS } from '../data/talents'
+import { TRAITS } from '../data/traits'
 import { fromKey, hexKey, neighbors } from '../utils/hex'
 import { createRng, type SeededRng } from '../utils/rng'
 import { ACTIONS, availableChoices, choiceKey, contextFor, parseChoiceKey, toTarget } from './actions'
 import { chooseAction, chooseTarget, planTurn } from './ai'
 import { adjDxOf, isAlive, isEngagedAt, livingUnits, mapOf, modifierTotal, movementOptions } from './combat'
-import { talentEffects, tickEffects } from './effects'
+import { ownedEffects, tickEffects } from './effects'
 import { ev } from './events'
 import { alignByGenus, buildOpponent } from './opponents'
 
@@ -35,6 +36,7 @@ export function unitFromCharacter(c: Character, pos: Hex, facing: Facing, contro
     base: { ...c.base, MA: BASE_MA },
     stCurrent: c.base.ST,
     talents: c.talents.map(t => ({ ...t })),
+    traits: [],
     inventory: c.inventory.map(i => ({ ...i })),
     equipped: { ...c.equipped, belt: [...c.equipped.belt] },
     naturalWeapons: [],
@@ -42,7 +44,7 @@ export function unitFromCharacter(c: Character, pos: Hex, facing: Facing, contro
     spells: [...c.spells],
     pos,
     facing,
-    effects: talentEffects({ uid, talents: c.talents }, TALENTS),
+    effects: ownedEffects(uid, c.talents, TALENTS, 'talent'),
     statuses: [],
     turn: freshTurn()
   }
@@ -58,7 +60,7 @@ export function unitFromOpponent(spec: OpponentSpec, uid: Id, pos: Hex, facing: 
   ] as const
   const inventory = gear.flatMap(g => (g.def ? [{ uid: `${uid}-${g.slot}`, defId: g.def.id }] : []))
   const has = (slot: string) => inventory.some(i => i.uid === `${uid}-${slot}`)
-  const effects = talentEffects({ uid, talents: o.talents }, TALENTS)
+  const effects = [...ownedEffects(uid, o.talents, TALENTS, 'talent'), ...ownedEffects(uid, o.traits, TRAITS, 'trait')]
   if (base.naturalHitsStopped) {
     effects.push({
       uid: `${uid}:natural`,
@@ -81,6 +83,7 @@ export function unitFromOpponent(spec: OpponentSpec, uid: Id, pos: Hex, facing: 
     base: { ...o.attrs, MA: base.attrs.MA },
     stCurrent: o.attrs.ST,
     talents: o.talents,
+    traits: o.traits.map(t => ({ ...t })),
     inventory,
     equipped: {
       mainHand: has('mainHand') ? `${uid}-mainHand` : undefined,

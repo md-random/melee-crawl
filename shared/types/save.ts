@@ -3,7 +3,8 @@ import type { BattleState } from './battle'
 import type { Character, CharacterClass, RunStats } from './character'
 import type { Encounter } from './creatures'
 
-export const SCHEMA_VERSION = 1
+/** Bump with a migration in engine/save.ts whenever the save format changes. */
+export const SCHEMA_VERSION = 2
 
 /** NetHack-style grave record; the leaderboard is a sorted list of these. */
 export interface Tombstone {

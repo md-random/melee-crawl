@@ -1,10 +1,11 @@
 import type {
-  ArmorDef, AttrKey, Attributes, CreatureBase, Id, NaturalWeapon, OpponentSpec, OwnedTalent, ShieldDef, WeaponDef
+  ArmorDef, AttrKey, Attributes, CreatureBase, EffectDef, Id, NaturalWeapon, OpponentSpec, OwnedTalent, OwnedTrait, ShieldDef, WeaponDef
 } from '../types'
 import { ARCHETYPES, CREATURES, archetypesFor } from '../data/creatures'
 import { ITEMS } from '../data/items'
 import { PROGRESSION } from '../data/progression'
 import { TALENTS } from '../data/talents'
+import { TRAITS } from '../data/traits'
 import { createRng, type SeededRng } from '../utils/rng'
 import { addTalent, adjustedDx, canTakeTalent, hasTalent, loadoutProblems, movementAllowance } from './rules'
 
@@ -18,6 +19,7 @@ export interface OpponentBuild {
   ma: number
   adjDx: number
   talents: OwnedTalent[]
+  traits: OwnedTrait[]
   naturalWeapons: NaturalWeapon[]
   hitsStopped: number
   weapon?: WeaponDef
@@ -43,8 +45,9 @@ export function budgetScore(budget: OpponentSpec['budget']): number {
 
 /**
  * Deterministic: base creature + archetype + budget + seed always give the same build.
- * Attribute points follow the archetype's bias; XP buys talents down its priority list
- * through the normal talent rules; humanoids then pick the best gear they can wield.
+ * Attribute points follow the archetype's bias. Creatures that use gear spend XP on
+ * talents down the archetype's priority list (hero rules) and pick the best gear they
+ * can wield; beasts don't buy talents, so their XP becomes attribute points instead.
  */
 export function buildOpponent(spec: OpponentSpec): OpponentBuild {
   const base: CreatureBase | undefined = CREATURES[spec.baseId]
@@ -53,20 +56,18 @@ export function buildOpponent(spec: OpponentSpec): OpponentBuild {
   const rng = createRng({ seed: spec.seed, calls: 0 })
 
   const attrs: Attributes = { ST: base.attrs.ST, DX: base.attrs.DX, IQ: base.attrs.IQ }
-  for (let i = 0; i < spec.budget.attrPoints; i++) attrs[weightedAttr(rng, arch.attrBias)]++
+  // Beasts turn XP into attribute points at the talent rate (500 XP = 1 point).
+  const xpPoints = base.canUseItems ? 0 : Math.floor(spec.budget.xp / PROGRESSION.talentXpCost)
+  for (let i = 0; i < spec.budget.attrPoints + xpPoints; i++) attrs[weightedAttr(rng, arch.attrBias)]++
 
-  // Humanoids learn talents within their IQ like heroes; beasts don't spend IQ.
-  const audience = base.canUseItems ? 'hero' : 'creature'
+  // Creatures that use gear learn talents within their IQ like heroes.
   let talents = [...base.baseTalents]
-  let xp = spec.budget.xp
+  let xp = base.canUseItems ? spec.budget.xp : 0
   for (const entry of arch.talentPriority) {
     if (xp < PROGRESSION.talentXpCost) break
     const [id, weaponTalent] = entry.split(':') as [Id, Id | undefined]
     const node = TALENTS[id]
-    if (!node) continue
-    const ctx = { attrs, owned: talents, audience, checkIq: base.canUseItems } as const
-    // Creature talents (for: 'creature') are always allowed for this archetype's base.
-    if (!canTakeTalent(node, { ...ctx, audience: node.for === 'creature' ? 'creature' : audience }, weaponTalent).ok) continue
+    if (!node || !canTakeTalent(node, { attrs, owned: talents, audience: 'hero' }, weaponTalent).ok) continue
     talents = addTalent(talents, id, weaponTalent)
     xp -= PROGRESSION.talentXpCost
   }
@@ -83,9 +84,14 @@ export function buildOpponent(spec: OpponentSpec): OpponentBuild {
     shield = s?.kind === 'shield' && loadoutProblems(attrs, { weapon, shield: s }).length === 0 ? s : undefined
   }
 
-  const talentMod = (stat: 'MA' | 'hitsStopped') => talents.reduce((sum, t) => {
-    for (const e of TALENTS[t.id]?.effects ?? []) {
-      if (e.kind === 'modifier') for (const m of e.modifiers) if (m.stat === stat && !m.when) sum += m.value * t.rank
+  // Unconditional MA and armor bonuses from talents and traits, per rank.
+  const owned: { effects: EffectDef[]; rank: number }[] = [
+    ...talents.map(t => ({ effects: TALENTS[t.id]?.effects ?? [], rank: t.rank })),
+    ...base.traits.map(t => ({ effects: TRAITS[t.id]?.effects ?? [], rank: t.rank }))
+  ]
+  const talentMod = (stat: 'MA' | 'hitsStopped') => owned.reduce((sum, o) => {
+    for (const e of o.effects) {
+      if (e.kind === 'modifier') for (const m of e.modifiers) if (m.stat === stat && !m.when) sum += m.value * o.rank
     }
     return sum
   }, 0)
@@ -104,6 +110,7 @@ export function buildOpponent(spec: OpponentSpec): OpponentBuild {
     ma: movementAllowance(base.attrs.MA + talentMod('MA'), gear),
     adjDx: adjustedDx(attrs, talents, gear).value,
     talents,
+    traits: base.traits,
     naturalWeapons: base.naturalWeapons,
     hitsStopped: base.naturalHitsStopped + talentMod('hitsStopped') + (armor?.hitsStopped ?? 0) + (shield?.hitsStopped ?? 0),
     weapon,

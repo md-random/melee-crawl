@@ -94,7 +94,7 @@ function addUnitEffect(state: BattleState, target: Unit, def: EffectDef, source:
       for (const e of same) events.push(...removeEffect(state, target, e, 'dispelled'))
     }
   }
-  if (def.kind === 'status' && target.statuses.includes(def.status)) {
+  if (def.kind === 'status' && def.stacking !== 'stack' && target.statuses.includes(def.status)) {
     // Refresh the existing one instead of stacking a second.
     const existing = target.effects.find(e => e.def.kind === 'status' && e.def.status === def.status)
     if (existing) existing.roundsLeft = roundsFor(def.duration)
@@ -107,7 +107,8 @@ function addUnitEffect(state: BattleState, target: Unit, def: EffectDef, source:
   }
   target.effects.push(effect)
   events.push(ev(state, { kind: 'effectAdded', effect }))
-  if (def.kind === 'status') {
+  // A stacked copy keeps the status on; it only switches on with the first copy.
+  if (def.kind === 'status' && !target.statuses.includes(def.status)) {
     target.statuses.push(def.status)
     events.push(ev(state, { kind: 'status', unit: target.uid, status: def.status, on: true }))
   }
@@ -186,20 +187,28 @@ function payUpkeep(state: BattleState, e: ActiveEffect): GameEvent[] {
   return dealDamage(state, caster, d.stPerTurn, `Maintaining ${e.source.name}`, undefined, true).events
 }
 
-/** Permanent effects a unit carries into battle: one per talent rank for stacking modifiers. */
-export function talentEffects(u: Pick<Unit, 'uid' | 'talents'>, talents: Record<string, { name: string; effects: EffectDef[] }>): ActiveEffect[] {
+/**
+ * Permanent effects a unit carries into battle from its talents or traits:
+ * one per rank for stacking modifiers.
+ */
+export function ownedEffects(
+  unitUid: Id,
+  owned: { id: Id; rank: number; weaponTalent?: Id }[],
+  defs: Record<string, { name: string; effects: EffectDef[] }>,
+  kind: 'talent' | 'trait'
+): ActiveEffect[] {
   const out: ActiveEffect[] = []
-  for (const t of u.talents) {
-    const node = talents[t.id]
-    if (!node) continue
-    node.effects.forEach((def, i) => {
-      const copies = def.kind === 'modifier' && def.stacking === 'stack' ? t.rank : 1
+  for (const t of owned) {
+    const def = defs[t.id]
+    if (!def) continue
+    def.effects.forEach((effect, i) => {
+      const copies = effect.kind === 'modifier' && effect.stacking === 'stack' ? t.rank : 1
       for (let r = 0; r < copies; r++) {
         out.push({
-          uid: `${u.uid}:${t.id}${t.weaponTalent ? `:${t.weaponTalent}` : ''}:${i}:${r}`,
-          def,
-          source: { kind: 'talent', id: t.id, name: node.name },
-          targetUnit: u.uid
+          uid: `${unitUid}:${kind}:${t.id}${t.weaponTalent ? `:${t.weaponTalent}` : ''}:${i}:${r}`,
+          def: effect,
+          source: { kind, id: t.id, name: def.name },
+          targetUnit: unitUid
         })
       }
     })

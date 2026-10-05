@@ -199,6 +199,24 @@ describe('effects', () => {
     expect(foe.statuses).not.toContain('poisoned')
   })
 
+  it('stacks poison: each copy ticks, and the status lasts until the last one ends', () => {
+    const s = arena()
+    const { foe } = unitsOf(s)
+    const st = foe.stCurrent
+    const poison = (rounds: number) => applyEffect(s,
+      { kind: 'status', status: 'poisoned', duration: { type: 'rounds', rounds }, tickDamage: { dice: 0, mod: 1 }, stacking: 'stack' },
+      { kind: 'action', id: 'venom', name: 'Venom' }, { target: foe }, fixedDice())
+    poison(1)
+    poison(2)
+    expect(foe.statuses.filter(x => x === 'poisoned')).toHaveLength(1)
+    tickEffects(s, fixedDice()) // both tick; the 1-round copy ends
+    expect(foe.stCurrent).toBe(st - 2)
+    expect(foe.statuses).toContain('poisoned')
+    tickEffects(s, fixedDice()) // the second ticks and ends
+    expect(foe.stCurrent).toBe(st - 3)
+    expect(foe.statuses).not.toContain('poisoned')
+  })
+
   it('casts a spell from data with no spell-specific code', () => {
     const bolt: SpellDef = {
       id: 'testBolt', name: 'Test Bolt', icon: '⚡', minIQ: 8, stCost: 2, range: 6, target: 'unit',

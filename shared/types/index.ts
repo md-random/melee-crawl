@@ -1,6 +1,7 @@
 export * from './core'
 export * from './effects'
 export * from './talents'
+export * from './traits'
 export * from './items'
 export * from './spells'
 export * from './creatures'

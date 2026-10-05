@@ -6,6 +6,7 @@ import { TALENTS } from '#shared/data/talents'
 import { advance, createBattle, submit, type PlayerInput } from '#shared/engine/battle'
 import { isAlive } from '#shared/engine/combat'
 import { randomSpec } from '#shared/engine/opponents'
+import { loadSave } from '#shared/engine/save'
 import { levelOf } from '#shared/engine/rules'
 import { randomSeed } from '#shared/utils/rng'
 
@@ -15,14 +16,15 @@ function emptySave(): SaveFile {
   return { schemaVersion: SCHEMA_VERSION, graveyard: [], settings: { animationSpeed: 1, logLimit: 2000 } }
 }
 
-/** localStorage for now; swap these two functions for a backend later. */
+/**
+ * localStorage for now; swap these two functions for a backend later.
+ * Old saves are migrated; one that can't be loaded is kept under a backup key.
+ */
 function readSave(): SaveFile {
   try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return emptySave()
-    const save = JSON.parse(raw) as SaveFile
-    // No migrations yet: an unknown version starts fresh rather than loading a broken save.
-    return save.schemaVersion === SCHEMA_VERSION ? save : emptySave()
+    const { save, backup } = loadSave(localStorage.getItem(KEY), emptySave)
+    if (backup) localStorage.setItem(`${KEY}.backup-${Date.now()}`, backup)
+    return save
   } catch {
     return emptySave()
   }

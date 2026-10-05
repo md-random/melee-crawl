@@ -4,6 +4,7 @@ import { ARCHETYPES } from '#shared/data/creatures'
 import { ITEMS } from '#shared/data/items'
 import { SPELLS } from '#shared/data/spells'
 import { TALENTS } from '#shared/data/talents'
+import { TRAITS } from '#shared/data/traits'
 import { ACTIONS, contextFor, parseChoiceKey, toTarget } from '#shared/engine/actions'
 import type { PlayerInput } from '#shared/engine/battle'
 import {
@@ -76,6 +77,11 @@ const chips = (owned: OwnedTalent[]) => owned.map(t => {
   const node = TALENTS[t.id]!
   const suffix = t.weaponTalent ? ` (${TALENTS[t.weaponTalent]?.name})` : t.rank > 1 ? ` ${t.rank}` : ''
   return { key: `${t.id}:${t.weaponTalent ?? ''}`, label: `${node.icon} ${node.name}${suffix}`, title: node.description, color: CHIP_COLORS[node.category] }
+})
+
+const traitChips = (u: Unit) => u.traits.map(t => {
+  const trait = TRAITS[t.id]
+  return { key: t.id, label: `${trait?.icon ?? ''} ${trait?.name ?? t.id}${t.rank > 1 ? ` ${t.rank}` : ''}`, title: trait?.description ?? '' }
 })
 
 // ---------- dice box ----------
@@ -264,6 +270,7 @@ function abandon() {
               <div class="tile-stats">⚔ {{ attackText(o) }}<template v-if="unitLoadout(o).armor"> · {{ unitLoadout(o).armor!.name }}</template></div>
               <div class="chips">
                 <span v-for="s in o.statuses" :key="s" class="chip status">{{ s }}</span>
+                <span v-for="t in traitChips(o)" :key="t.key" class="chip trait" :title="t.title">{{ t.label }}</span>
                 <span v-for="c in chips(o.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">{{ c.label }}</span>
               </div>
             </div>
@@ -591,6 +598,10 @@ dd {
 
 .chip.status {
   background: #555;
+}
+
+.chip.trait {
+  background: #5a4a6a;
 }
 
 .prompt {

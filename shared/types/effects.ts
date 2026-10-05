@@ -46,7 +46,8 @@ export type EffectDef =
   | { kind: 'damage'; dice: DiceExpr; ignoresArmor?: boolean }
   | { kind: 'heal'; dice: DiceExpr }
   | { kind: 'modifier'; modifiers: Modifier[]; duration: Duration; stacking: StackRule; tags?: string[] }
-  | { kind: 'status'; status: StatusId; duration: Duration; tickDamage?: DiceExpr }
+  /** 'stack' adds another copy (poison); default 'refresh' resets the existing one's duration. */
+  | { kind: 'status'; status: StatusId; duration: Duration; tickDamage?: DiceExpr; stacking?: 'stack' | 'refresh' }
   | { kind: 'summon'; creatureId: Id; count: number; duration: Duration }
   | { kind: 'terrain'; overlay: OverlayId; area: AreaShape; duration: Duration }
   | { kind: 'remove'; matchTag?: string; matchSource?: EffectSourceKind }
@@ -54,7 +55,7 @@ export type EffectDef =
 
 export type OverlayId = 'fire' | 'wall' | 'shadow' | 'web'
 
-export type EffectSourceKind = 'talent' | 'item' | 'spell' | 'action' | 'terrain' | 'wound' | 'armor'
+export type EffectSourceKind = 'talent' | 'trait' | 'item' | 'spell' | 'action' | 'terrain' | 'wound' | 'armor'
 
 /** A live effect on a unit or hex during battle. */
 export interface ActiveEffect {
