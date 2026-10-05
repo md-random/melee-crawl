@@ -47,6 +47,14 @@ describe('reachable', () => {
     expect(out.get(hexKey(web!))).toBe(4)
     expect(out.has(hexKey(wall!))).toBe(false)
   })
+
+  it('enters stop hexes but never moves on from them', () => {
+    // A ring of stops around the start: each is reachable, nothing past them is.
+    const start = { q: 3, r: 1 }
+    const stops = new Set(neighbors(start).map(hexKey))
+    const out = reachable(field(), start, 5, { stops })
+    expect([...out.keys()].sort()).toEqual([hexKey(start), ...stops].sort())
+  })
 })
 
 describe('findPath', () => {

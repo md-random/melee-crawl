@@ -1,6 +1,6 @@
 import type { Attributes, Facing, Hex, HexKey, Id, RngState, Side } from './core'
 import type { ActiveEffect, OverlayId, StatusId } from './effects'
-import type { Biome, NaturalWeapon, OpponentSpec } from './creatures'
+import type { AiProfileId, Biome, NaturalWeapon, OpponentSpec } from './creatures'
 import type { Equipment, ItemInstance } from './items'
 import type { OwnedTalent } from './talents'
 
@@ -40,7 +40,10 @@ export interface Unit {
   portraitId: string
   side: Side
   controller: 'human' | 'ai'
+  /** Used when controller is 'ai'. Opponents get their archetype's profile. */
+  aiProfile?: AiProfileId
   origin: UnitOrigin
+  tags: string[]
 
   base: Attributes & { MA: number }
   stCurrent: number
@@ -49,13 +52,24 @@ export interface Unit {
   equipped: Equipment
   naturalWeapons: NaturalWeapon[]
   readyWeapon?: Id             // ItemInstance uid or natural weapon name
+  spells: Id[]
 
   pos: Hex
   facing: Facing
   effects: ActiveEffect[]      // buffs, debuffs, armor, wounds, talents
   statuses: StatusId[]
 
-  turn: { hexesMoved: number; action?: ChosenAction; done: boolean }
+  turn: UnitTurn
+}
+
+export interface UnitTurn {
+  hexesMoved: number
+  /** Engaged when its movement began; leaving engagement then counts as disengaging. */
+  startedEngaged: boolean
+  action?: ChosenAction
+  /** Planned target from the AI's movement-time plan. */
+  plannedTarget?: Id | HexKey
+  done: boolean
 }
 
 // ---------- turn flow ----------
@@ -75,12 +89,14 @@ export interface ChosenAction {
   targetUnit?: Id
   targetHex?: Hex
   itemUid?: Id
+  spellId?: Id
 }
 
 /** What the UI is waiting for the human to do. */
 export type PendingInput =
   | { kind: 'move'; unitUid: Id; reachable: HexKey[] }
-  | { kind: 'chooseAction'; unitUid: Id; actions: Id[] }
+  /** `actions` are choice keys: 'attack', 'castSpell:<spellId>', 'useItem:<itemUid>'. */
+  | { kind: 'chooseAction'; unitUid: Id; actions: string[] }
   | { kind: 'chooseTarget'; unitUid: Id; actionId: Id; targets: (Id | HexKey)[] }
   | { kind: 'chooseFacing'; unitUid: Id }
 
@@ -93,7 +109,13 @@ export interface BattleState {
   round: number
   phase: Phase
   moveOrder: Side[]            // initiative result for this round
+  /** Units still to act in the current phase, in order. */
+  queue: Id[]
   activeUnit?: Id
   pending?: PendingInput
+  /** Effects on hexes rather than units (terrain overlays). */
+  fieldEffects: ActiveEffect[]
+  /** Counters for event order and effect uids; saved so reloads continue them. */
+  seq: { event: number; uid: number }
   killedBy?: { unitUid: Id; name: string; talents: Id[] }
 }

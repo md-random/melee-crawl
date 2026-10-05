@@ -43,4 +43,14 @@ describe('data integrity', () => {
       for (const id of a.appliesTo.baseIds ?? []) expect(CREATURES[id], `${a.id} → ${id}`).toBeDefined()
     }
   })
+
+  it('creatures of one genus share the same archetypes', () => {
+    const byGenus = new Map<string, string[]>()
+    for (const c of Object.values(CREATURES)) {
+      const ids = archetypesFor(c).map(a => a.id).sort()
+      const seen = byGenus.get(c.genus)
+      if (seen) expect(ids, `${c.id} in genus ${c.genus}`).toEqual(seen)
+      else byGenus.set(c.genus, ids)
+    }
+  })
 })

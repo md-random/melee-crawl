@@ -12,6 +12,11 @@ export interface CreatureBase {
   id: Id
   name: string
   portraitId: string
+  /**
+   * Grouping for AI: every creature of one genus in a fight shares an archetype.
+   * Variants keep their parent's genus (a fire orc is 'orc'). Name under review.
+   */
+  genus: Id
   tags: string[]               // 'humanoid', 'beast', 'undead'...
   attrs: { ST: number; DX: number; IQ: number; MA: number }
   naturalWeapons: NaturalWeapon[]

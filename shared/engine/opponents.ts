@@ -113,6 +113,24 @@ export function buildOpponent(spec: OpponentSpec): OpponentBuild {
   }
 }
 
+/**
+ * One archetype per genus in a fight, so all orcs in it fight alike.
+ * The first spec of each genus sets it. Every base in a genus shares the
+ * same archetype list (checked in data tests), so the swap is always legal.
+ */
+export function alignByGenus(specs: OpponentSpec[]): OpponentSpec[] {
+  const chosen = new Map<Id, Id>()
+  return specs.map(s => {
+    const genus = CREATURES[s.baseId]?.genus ?? s.baseId
+    const archetypeId = chosen.get(genus)
+    if (!archetypeId) {
+      chosen.set(genus, s.archetypeId)
+      return s
+    }
+    return archetypeId === s.archetypeId ? s : { ...s, archetypeId }
+  })
+}
+
 /** Picks a base creature and a fitting archetype. Used until matchmaking exists. */
 export function randomSpec(seed: number, budget: OpponentSpec['budget'], baseIds: Id[] = Object.keys(CREATURES)): OpponentSpec {
   const rng = createRng({ seed, calls: 0 })

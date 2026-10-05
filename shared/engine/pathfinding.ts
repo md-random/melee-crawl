@@ -7,6 +7,8 @@ export interface Obstructions {
   overlays?: MapState['overlays']
   /** Hexes holding a unit: can't be entered, and block line of sight. */
   occupied?: ReadonlySet<HexKey>
+  /** Hexes that end movement: can be entered but not left (engagement). */
+  stops?: ReadonlySet<HexKey>
 }
 
 /** Cost to enter a hex, or null if it can't be entered. */
@@ -41,6 +43,7 @@ export function reachable(map: GeneratedMap, from: Hex, ma: number, obs: Obstruc
   while (open.length) {
     const [key, cost] = popMin(open)
     if (cost > best.get(key)!) continue
+    if (key !== start && obs.stops?.has(key)) continue
     for (const n of neighbors(fromKey(key))) {
       const nk = hexKey(n)
       const step = enterCost(map, nk, obs)
@@ -73,6 +76,7 @@ export function findPath(map: GeneratedMap, from: Hex, to: Hex, obs: Obstruction
       }
       return path
     }
+    if (key !== start && obs.stops?.has(key)) continue
     for (const n of neighbors(fromKey(key))) {
       const nk = hexKey(n)
       const step = enterCost(map, nk, obs)

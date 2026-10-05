@@ -12,6 +12,8 @@ const props = defineProps<{
   selectedUid?: string
   /** Hexes the selected unit can move to. */
   reach?: ReadonlySet<HexKey>
+  /** Hexes holding valid targets for the chosen action. */
+  targets?: ReadonlySet<HexKey>
   path?: Hex[]
   sight?: { from: Hex; to: Hex; clear: boolean }
 }>()
@@ -43,6 +45,7 @@ const COLORS = {
   hover: '#f2c14e',
   coords: 'rgba(60, 45, 25, 0.55)',
   reach: 'rgba(242, 193, 78, 0.28)',
+  target: '#e0402f',
   path: '#f2c14e',
   sightClear: 'rgba(40, 160, 70, 0.9)',
   sightBlocked: 'rgba(200, 40, 30, 0.9)',
@@ -392,6 +395,15 @@ function draw() {
     }
   }
 
+  if (props.targets) {
+    ctx.strokeStyle = COLORS.target
+    ctx.lineWidth = Math.max(2, hexSize * 0.1)
+    for (const key of props.targets) {
+      tracePath(ctx, hexCorners(center(key), hexSize * 0.85))
+      ctx.stroke()
+    }
+  }
+
   if (props.path && props.path.length > 1) {
     ctx.beginPath()
     props.path.forEach((h, i) => {
@@ -491,7 +503,7 @@ onBeforeUnmount(() => {
 })
 
 watch(() => [props.map, props.showCoords], relayout)
-watch(() => [props.overlays, props.units, props.selectedUid, props.reach, props.path, props.sight], draw, { deep: true })
+watch(() => [props.overlays, props.units, props.selectedUid, props.reach, props.targets, props.path, props.sight], draw, { deep: true })
 </script>
 
 <template>

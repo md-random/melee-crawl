@@ -1,74 +1,73 @@
 <script setup lang="ts">
-import type { DiceExpr, Facing, Hex, HexKey, OwnedTalent, Side, TalentCategory } from '#shared/types'
-import { BASE_MA } from '#shared/data/progression'
+import type { DiceExpr, Facing, GameEvent, Hex, HexKey, OwnedTalent, TalentCategory, Unit } from '#shared/types'
+import { ARCHETYPES } from '#shared/data/creatures'
+import { ITEMS } from '#shared/data/items'
+import { SPELLS } from '#shared/data/spells'
 import { TALENTS } from '#shared/data/talents'
-import { generateMap } from '#shared/engine/mapgen'
-import { buildOpponent, randomSpec } from '#shared/engine/opponents'
-import { findPath, lineOfSight, reachable } from '#shared/engine/pathfinding'
-import { adjustedDx, loadoutOf, movementAllowance } from '#shared/engine/rules'
-import { DIRECTIONS, fromKey, hexEquals, hexKey } from '#shared/utils/hex'
-import { randomSeed } from '#shared/utils/rng'
+import { ACTIONS, contextFor, parseChoiceKey, toTarget } from '#shared/engine/actions'
+import type { PlayerInput } from '#shared/engine/battle'
+import {
+  adjDxOf, directionTo, hitsStoppedOf, isAlive, mapOf, maOf, movementObstructions, obstructions, readyAttack, unitLoadout
+} from '#shared/engine/combat'
+import { findPath, lineOfSight } from '#shared/engine/pathfinding'
+import { adjustedDx } from '#shared/engine/rules'
+import { hexEquals, hexKey } from '#shared/utils/hex'
+import { createRng } from '#shared/utils/rng'
+import { FACING_NAMES, PHASE_NAMES, describeEvent } from '~/composables/battleText'
 import { useGameStore } from '~/stores/game'
 
-// Battle screen. Movement only until the combat engine exists.
+// Battle screen: shows the engine's state and sends the player's choices to it.
 
 const game = useGameStore()
-const character = game.character
-if (!character) await navigateTo('/create')
+if (!game.character) await navigateTo('/create')
 
-const seed = randomSeed()
-const map = generateMap({ seed, biome: 'forest', width: 15, height: 11 })
-
-interface Token {
-  uid: string
-  name: string
-  side: Side
-  pos: Hex
-  facing: Facing
-  st: number
-  stMax: number
-  dx: number
-  adjDx: number
-  dxParts: { label: string; value: number }[]
-  iq: number
-  ma: number
-  weapon: string
-  armor: string
-  talents: OwnedTalent[]
+const events = ref<GameEvent[]>([])
+function record(list: GameEvent[]) {
+  events.value.push(...list)
+  const limit = game.save.settings.logLimit
+  if (events.value.length > limit) events.value.splice(0, events.value.length - limit)
 }
+if (game.character && !game.battle) record(game.startBattle())
 
-const FACING_NAMES = ['NE', 'SE', 'S', 'SW', 'NW', 'N'] as const
-const at = (key: HexKey | undefined) => fromKey(key!)
-const dmg = (d: DiceExpr) => `${d.dice}d${d.mod ? (d.mod > 0 ? `+${d.mod}` : d.mod) : ''}`
+const battle = computed(() => game.battle)
+const map = computed(() => (battle.value ? mapOf(battle.value) : undefined))
+const units = computed(() => (battle.value ? Object.values(battle.value.units) : []))
+const hero = computed(() => units.value.find(u => u.side === 'player'))
+const opponents = computed(() => units.value.filter(u => u.side === 'enemy'))
+const tokens = computed(() => units.value.filter(isAlive))
+const pending = computed(() => battle.value?.pending)
+const active = computed(() => (pending.value && battle.value ? battle.value.units[pending.value.unitUid] : undefined))
+const tab = ref<'action' | 'log'>('action')
 
-function heroToken(): Token {
-  const c = character!
-  const gear = loadoutOf(c)
-  const adj = adjustedDx(c.base, c.talents, gear)
-  return {
-    uid: 'hero', name: c.name, side: 'player', pos: at(map.spawns.player[1]), facing: 1,
-    st: c.base.ST, stMax: c.base.ST, dx: c.base.DX, adjDx: adj.value, dxParts: adj.parts, iq: c.base.IQ,
-    ma: movementAllowance(BASE_MA, gear),
-    weapon: gear.weapon ? `${gear.weapon.name} ${dmg(gear.weapon.damage)}` : 'Unarmed',
-    armor: gear.armor?.name ?? 'No armor',
-    talents: c.talents
+const error = ref('')
+function send(input: PlayerInput) {
+  error.value = ''
+  try {
+    record(game.act(input))
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
   }
 }
 
-/** Two opponents near the hero's level. Placeholder until matchmaking. */
-function opponentTokens(): Token[] {
-  return [0, 2].map((spawn, i) => {
-    const o = buildOpponent(randomSpec(seed + i + 1, { attrPoints: i * 2, xp: i * 500 }))
-    const attack = o.weapon ? `${o.weapon.name} ${dmg(o.weapon.damage)}` : o.naturalWeapons.map(w => `${w.name} ${dmg(w.damage)}`).join(', ')
-    return {
-      uid: `enemy${i}`, name: o.name, side: 'enemy', pos: at(map.spawns.enemy[spawn]), facing: 4,
-      st: o.attrs.ST, stMax: o.attrs.ST, dx: o.attrs.DX, adjDx: o.adjDx, dxParts: [], iq: o.attrs.IQ, ma: o.ma,
-      weapon: attack, armor: o.armor?.name ?? '', talents: o.talents
-    }
-  })
+// ---------- unit display ----------
+
+const dmg = (d: DiceExpr) => `${d.dice}d${d.mod ? (d.mod > 0 ? `+${d.mod}` : d.mod) : ''}`
+
+function attackText(u: Unit): string {
+  const a = readyAttack(u)
+  return a ? `${a.name} ${dmg(a.damage)}${a.range > 1 ? `, range ${a.range}` : ''}` : 'No weapon ready'
 }
 
-const units = ref<Token[]>(character ? [heroToken(), ...opponentTokens()] : [])
+function dxParts(u: Unit): string {
+  const parts = adjustedDx({ ST: u.base.ST, DX: u.base.DX, IQ: u.base.IQ }, u.talents, unitLoadout(u)).parts
+  return parts.map(p => `${p.label} ${p.value}`).join('\n')
+}
+
+function archetypeText(u: Unit): string {
+  if (u.origin.type !== 'opponent') return ''
+  const arch = ARCHETYPES[u.origin.spec.archetypeId]
+  return arch ? `${arch.name} · ${u.aiProfile ?? ''} AI` : ''
+}
 
 const CHIP_COLORS: Record<TalentCategory, string> = {
   attack: '#a3402f', debuff: '#7a4a9c', defense: '#2f5f9c', movement: '#3f8a4a', utility: '#7a6a3a', weapon: '#6a5a4a'
@@ -78,70 +77,153 @@ const chips = (owned: OwnedTalent[]) => owned.map(t => {
   const suffix = t.weaponTalent ? ` (${TALENTS[t.weaponTalent]?.name})` : t.rank > 1 ? ` ${t.rank}` : ''
   return { key: `${t.id}:${t.weaponTalent ?? ''}`, label: `${node.icon} ${node.name}${suffix}`, title: node.description, color: CHIP_COLORS[node.category] }
 })
+
+// ---------- dice box ----------
+
+const recentRolls = computed(() => events.value.filter(e => e.kind === 'roll').slice(-4).reverse())
+
+// ---------- map interaction ----------
+
 const hovered = ref<Hex | null>(null)
-const tab = ref<'action' | 'log'>('action')
-const log = ref<{ time: string; text: string }[]>([])
 
-function addLog(text: string) {
-  log.value.push({ time: new Date().toLocaleTimeString(), text })
-}
-addLog(`Map generated: seed ${seed}, forest, ${map.attempts} attempt(s)`)
-for (const o of units.value.filter(u => u.side === 'enemy')) {
-  addLog(`Opponent: ${o.name} ST ${o.st} DX ${o.dx} IQ ${o.iq} adjDX ${o.adjDx} MA ${o.ma}; ${o.weapon}; talents ${o.talents.map(t => t.id).join(', ') || 'none'}`)
-}
+const reach = computed(() => (pending.value?.kind === 'move' ? new Set<HexKey>(pending.value.reachable) : undefined))
 
-const hero = computed(() => units.value.find(u => u.side === 'player')!)
-const opponents = computed(() => units.value.filter(u => u.side === 'enemy'))
-const unitAt = (h: Hex) => units.value.find(u => hexEquals(u.pos, h))
-
-const obstructions = computed(() => ({
-  occupied: new Set(units.value.filter(u => u !== hero.value).map(u => hexKey(u.pos)))
-}))
-
-const reach = computed(() => {
-  const cost = reachable(map, hero.value.pos, hero.value.ma, obstructions.value)
-  return new Set([...cost.keys()].filter(k => k !== hexKey(hero.value.pos)))
+const path = computed(() => {
+  const b = battle.value
+  const u = active.value
+  const h = hovered.value
+  if (pending.value?.kind !== 'move' || !b || !u || !h || !reach.value?.has(hexKey(h))) return undefined
+  return findPath(mapOf(b), u.pos, h, movementObstructions(b, u)) ?? undefined
 })
 
-const path = computed(() =>
-  hovered.value && reach.value.has(hexKey(hovered.value))
-    ? findPath(map, hero.value.pos, hovered.value, obstructions.value) ?? undefined
-    : undefined
-)
+/** Target ids for the pending choice, keyed by the hex they sit on. */
+const targetByHex = computed(() => {
+  const b = battle.value
+  const out = new Map<HexKey, string>()
+  if (pending.value?.kind !== 'chooseTarget' || !b) return out
+  for (const t of pending.value.targets) {
+    const target = toTarget(b, t)
+    if (target.hex) out.set(hexKey(target.hex), t)
+  }
+  return out
+})
+const targetKeys = computed(() => (targetByHex.value.size ? new Set(targetByHex.value.keys()) : undefined))
 
 const sight = computed(() => {
+  const b = battle.value
+  const from = active.value ?? hero.value
   const to = hovered.value
-  if (!to || hexEquals(to, hero.value.pos)) return undefined
-  return { from: hero.value.pos, to, clear: lineOfSight(map, hero.value.pos, to, obstructions.value) }
+  if (!b || !from || !to || hexEquals(to, from.pos)) return undefined
+  const there = tokens.value.find(u => hexEquals(u.pos, to))
+  const obs = obstructions(b, from.uid, ...(there ? [there.uid] : []))
+  return { from: from.pos, to, clear: lineOfSight(mapOf(b), from.pos, to, obs) }
 })
 
-function abandon() {
-  if (!confirm(`Abandon ${hero.value.name}? This is permanent: they go to the graveyard as abandoned.`)) return
-  game.abandonRun()
+function onSelect(h: Hex) {
+  const p = pending.value
+  const u = active.value
+  if (!p || !u) return
+  if (p.kind === 'move' && reach.value?.has(hexKey(h))) send({ kind: 'move', to: h })
+  else if (p.kind === 'chooseFacing' && !hexEquals(h, u.pos)) send({ kind: 'face', facing: directionTo(u.pos, h) })
+  else if (p.kind === 'chooseTarget') {
+    const t = targetByHex.value.get(hexKey(h))
+    if (t) send({ kind: 'target', target: t })
+  }
+}
+
+// ---------- action tab ----------
+
+const actionOptions = computed(() => {
+  const p = pending.value
+  if (p?.kind !== 'chooseAction') return []
+  return p.actions.map(key => {
+    const c = parseChoiceKey(key)
+    const def = ACTIONS[c.actionId]
+    const inst = c.itemUid ? active.value?.inventory.find(i => i.uid === c.itemUid) : undefined
+    const extra = c.spellId ? SPELLS[c.spellId]?.name : inst ? ITEMS[inst.defId]?.name : undefined
+    return { key, label: `${def?.icon ?? ''} ${def?.label ?? c.actionId}${extra ? `: ${extra}` : ''}` }
+  })
+})
+
+const targetOptions = computed(() => {
+  const p = pending.value
+  const b = battle.value
+  const u = active.value
+  if (p?.kind !== 'chooseTarget' || !b || !u?.turn.action) return []
+  const def = ACTIONS[p.actionId]
+  if (!def) return []
+  // Estimates never roll dice; a throwaway RNG keeps the battle's own untouched.
+  const ctx = contextFor(b, u, u.turn.action, createRng({ seed: 0, calls: 0 }))
+  return p.targets.map(t => {
+    const target = toTarget(b, t)
+    const est = def.estimate(ctx, target)
+    const who = target.unit ? b.units[target.unit]?.name : t
+    return { id: t, label: who ?? t, hit: Math.round(est.hitChance * 100), damage: est.damage.toFixed(1) }
+  })
+})
+
+const prompt = computed(() => {
+  const p = pending.value
+  const u = active.value
+  if (!p || !u) return ''
+  switch (p.kind) {
+    case 'move': return `${u.name}: click a lit hex to move (MA ${maOf(u)}), or your own hex to stay.`
+    case 'chooseFacing': return `${u.name}: click a hex to face it, or pick a direction.`
+    case 'chooseAction': return `${u.name}: choose an action. Moved ${u.turn.hexesMoved} hex${u.turn.hexesMoved === 1 ? '' : 'es'}.`
+    case 'chooseTarget': return `${u.name}: choose a target.`
+  }
+  return ''
+})
+
+const narration = computed(() => events.value.filter(e => e.kind === 'narrate').slice(-12))
+
+const killerName = computed(() => {
+  const b = battle.value
+  return b?.killedBy ? b.units[b.killedBy.unitUid]?.name ?? b.killedBy.name : 'unknown'
+})
+
+// ---------- end of battle ----------
+
+function nextBattle() {
+  game.finishVictory()
+  events.value = []
+  record(game.startBattle())
+}
+
+function toGraveyard() {
+  game.recordDeath()
   navigateTo('/create')
 }
 
-function onSelect(h: Hex) {
-  if (unitAt(h)) return
-  const route = reach.value.has(hexKey(h)) ? findPath(map, hero.value.pos, h, obstructions.value) : null
-  if (!route || route.length < 2) return
-  const [prev, last] = route.slice(-2) as [Hex, Hex]
-  const step = { q: last.q - prev.q, r: last.r - prev.r }
-  hero.value.facing = DIRECTIONS.findIndex(d => hexEquals(d, step)) as Facing
-  hero.value.pos = h
-  addLog(`${hero.value.name} moved to ${hexKey(h)} (${route.length - 1} hexes), facing ${FACING_NAMES[hero.value.facing]}`)
+function abandon() {
+  if (!hero.value || !confirm(`Abandon ${hero.value.name}? This is permanent: they go to the graveyard as abandoned.`)) return
+  game.abandonRun()
+  navigateTo('/create')
 }
 </script>
 
 <template>
-  <div v-if="units.length" class="page">
+  <div v-if="battle && map && hero" class="page">
     <div class="layout">
       <aside class="side">
         <button class="abandon" @click="abandon">Abandon hero</button>
 
         <section class="box">
           <h2>Dice</h2>
-          <p class="muted">No rolls yet</p>
+          <p v-if="!recentRolls.length" class="muted">No rolls yet</p>
+          <ul v-else class="rolls">
+            <li v-for="r in recentRolls" :key="r.at">
+              <template v-if="r.kind === 'roll'">
+                <span class="roll-purpose">{{ r.purpose }}</span>
+                <span class="dice">
+                  <span v-for="(d, i) in r.dice" :key="i" class="die">{{ d }}</span>
+                  <span class="roll-total">= {{ r.total }}<template v-if="r.target !== undefined"> vs {{ r.target }}</template></span>
+                  <span v-if="r.success !== undefined" :class="['roll-result', r.success ? 'ok' : 'bad']">{{ r.success ? 'Hit' : 'Miss' }}</span>
+                  <span v-if="r.special" class="roll-special">{{ r.special }}</span>
+                </span>
+              </template>
+            </li>
+          </ul>
         </section>
 
         <section class="box">
@@ -150,16 +232,19 @@ function onSelect(h: Hex) {
             <div class="portrait">⚔</div>
             <dl>
               <dt>Name</dt><dd>{{ hero.name }}</dd>
-              <dt>ST</dt><dd>{{ hero.st }} / {{ hero.stMax }}</dd>
-              <dt>DX</dt><dd>{{ hero.dx }}</dd>
+              <dt>ST</dt><dd>{{ hero.stCurrent }} / {{ hero.base.ST }}</dd>
+              <dt>DX</dt><dd>{{ hero.base.DX }}</dd>
               <dt>adj DX</dt>
-              <dd :title="hero.dxParts.map(p => `${p.label} ${p.value}`).join('\n')" class="hint">{{ hero.adjDx }}</dd>
-              <dt>IQ</dt><dd>{{ hero.iq }}</dd>
-              <dt>MA</dt><dd>{{ hero.ma }}</dd>
+              <dd :title="dxParts(hero)" class="hint">{{ adjDxOf(hero) }}</dd>
+              <dt>IQ</dt><dd>{{ hero.base.IQ }}</dd>
+              <dt>MA</dt><dd>{{ maOf(hero) }}</dd>
+              <dt>Armor</dt><dd>{{ hitsStoppedOf(hero) }}</dd>
             </dl>
           </div>
-          <p class="gear">{{ hero.weapon }} · {{ hero.armor }}</p>
+          <div class="bar-st"><span :style="{ width: `${Math.max(0, hero.stCurrent / hero.base.ST) * 100}%` }" /></div>
+          <p class="gear">{{ attackText(hero) }} · {{ unitLoadout(hero).armor?.name ?? 'No armor' }}</p>
           <div class="chips">
+            <span v-for="s in hero.statuses" :key="s" class="chip status">{{ s }}</span>
             <span v-for="c in chips(hero.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">{{ c.label }}</span>
           </div>
         </section>
@@ -167,13 +252,18 @@ function onSelect(h: Hex) {
         <section class="box">
           <h2>Opponents</h2>
           <div class="tiles">
-            <div v-for="o in opponents" :key="o.uid" class="tile">
+            <div v-for="o in opponents" :key="o.uid" :class="['tile', { dead: !isAlive(o), active: o.uid === battle.activeUnit }]">
               <div class="portrait small">👹</div>
               <div class="tile-name">{{ o.name }}</div>
-              <div class="bar-st"><span :style="{ width: `${(o.st / o.stMax) * 100}%` }" /></div>
-              <div class="tile-stats">ST {{ o.st }}/{{ o.stMax }} · adjDX {{ o.adjDx }} · MA {{ o.ma }}</div>
-              <div class="tile-stats">⚔ {{ o.weapon }}<template v-if="o.armor"> · {{ o.armor }}</template></div>
+              <div class="tile-stats">{{ archetypeText(o) }}</div>
+              <div class="bar-st"><span :style="{ width: `${Math.max(0, o.stCurrent / o.base.ST) * 100}%` }" /></div>
+              <div class="tile-stats">
+                <template v-if="isAlive(o)">ST {{ o.stCurrent }}/{{ o.base.ST }} · adjDX {{ adjDxOf(o) }} · MA {{ maOf(o) }}</template>
+                <template v-else>Dead</template>
+              </div>
+              <div class="tile-stats">⚔ {{ attackText(o) }}<template v-if="unitLoadout(o).armor"> · {{ unitLoadout(o).armor!.name }}</template></div>
               <div class="chips">
+                <span v-for="s in o.statuses" :key="s" class="chip status">{{ s }}</span>
                 <span v-for="c in chips(o.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">{{ c.label }}</span>
               </div>
             </div>
@@ -182,11 +272,16 @@ function onSelect(h: Hex) {
       </aside>
 
       <section class="board">
+        <div class="status-line">
+          Battle {{ battle.battleNo }} · Round {{ battle.round }} · {{ PHASE_NAMES[battle.phase] }}
+        </div>
         <HexCanvas
           :map="map"
-          :units="units"
-          selected-uid="hero"
+          :overlays="battle.map.overlays"
+          :units="tokens"
+          :selected-uid="battle.activeUnit"
           :reach="reach"
+          :targets="targetKeys"
           :path="path"
           :sight="sight"
           @hover="hovered = $event"
@@ -199,9 +294,38 @@ function onSelect(h: Hex) {
           <button :class="{ active: tab === 'action' }" @click="tab = 'action'">Action</button>
           <button :class="{ active: tab === 'log' }" @click="tab = 'log'">Log</button>
         </div>
-        <p v-if="tab === 'action'" class="tab-body">{{ hero.name }}: choose a lit hex to move to.</p>
+
+        <div v-if="tab === 'action'" class="tab-body">
+          <div v-if="battle.phase === 'victory'" class="banner win">
+            Victory!
+            <button @click="nextBattle">Next battle</button>
+          </div>
+          <div v-else-if="battle.phase === 'defeat'" class="banner lose">
+            {{ hero.name }} has fallen, killed by {{ killerName }}.
+            <button @click="toGraveyard">To the graveyard</button>
+          </div>
+          <template v-else>
+            <p class="prompt">{{ prompt }}</p>
+            <div v-if="pending?.kind === 'chooseFacing'" class="controls">
+              <button v-for="(n, f) in FACING_NAMES" :key="n" @click="send({ kind: 'face', facing: f as Facing })">{{ n }}</button>
+            </div>
+            <div v-else-if="pending?.kind === 'chooseAction'" class="controls">
+              <button v-for="a in actionOptions" :key="a.key" @click="send({ kind: 'action', choice: a.key })">{{ a.label }}</button>
+            </div>
+            <div v-else-if="pending?.kind === 'chooseTarget'" class="controls">
+              <button v-for="t in targetOptions" :key="t.id" @click="send({ kind: 'target', target: t.id })">
+                {{ t.label }} · {{ t.hit }}% to hit · ~{{ t.damage }} damage
+              </button>
+            </div>
+            <p v-if="error" class="error">{{ error }}</p>
+          </template>
+          <ul class="narration">
+            <li v-for="e in narration" :key="e.at">{{ e.kind === 'narrate' ? e.text : '' }}</li>
+          </ul>
+        </div>
+
         <ol v-else class="tab-body log">
-          <li v-for="(entry, i) in log" :key="i"><span class="muted">{{ entry.time }}</span> {{ entry.text }}</li>
+          <li v-for="e in events" :key="e.at"><span class="muted">R{{ e.round }}</span> {{ describeEvent(battle, e) }}</li>
         </ol>
       </section>
     </div>
@@ -394,5 +518,118 @@ dd {
 
 .muted {
   color: var(--muted);
+}
+
+.status-line {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.rolls {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.roll-purpose {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.dice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.die {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  font-weight: 600;
+}
+
+.roll-total {
+  font-size: 0.85rem;
+}
+
+.roll-result {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.roll-result.ok {
+  color: #7fa64e;
+}
+
+.roll-result.bad {
+  color: #e07a6a;
+}
+
+.roll-special {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.tile.dead {
+  opacity: 0.45;
+}
+
+.tile.active {
+  border-color: var(--accent);
+}
+
+.chip.status {
+  background: #555;
+}
+
+.prompt {
+  margin: 0 0 8px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.banner.win {
+  color: #7fa64e;
+}
+
+.banner.lose {
+  color: #e07a6a;
+}
+
+.narration {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.error {
+  color: #e07a6a;
+  font-size: 0.85rem;
 }
 </style>
