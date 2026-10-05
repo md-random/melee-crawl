@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import type { Attributes, CharacterClass, OwnedTalent, WeaponDef } from '#shared/types'
+import type { Attributes, CharacterClass, OwnedTalent } from '#shared/types'
 import { useTalents, type TalentRow } from '~/composables/useTalents'
 
 const props = defineProps<{
   modelValue: OwnedTalent[]
   attrs: Attributes
   cls: CharacterClass
-  weapon?: WeaponDef
   /** Saved talents: shown as permanent, can't be forgotten. */
   locked?: OwnedTalent[]
+  /** Attribute points left to spend. */
+  attrPoints?: number
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [talents: OwnedTalent[]] }>()
@@ -17,8 +18,8 @@ const { branches, iqSpent, iqLeft, toggle, prune } = useTalents({
   attrs: () => props.attrs,
   owned: () => props.modelValue,
   cls: () => props.cls,
-  weapon: () => props.weapon,
-  locked: () => props.locked
+  locked: () => props.locked,
+  attrPoints: () => props.attrPoints
 })
 
 function onClick(row: TalentRow) {
@@ -41,7 +42,7 @@ watch(() => props.attrs, () => {
         <h2>Talents</h2>
         <p class="note">
           Talents are skills. Each costs IQ.
-          Learning a talent also learns anything it needs. Green = learned, gold outline = can learn now, faded = not yet.
+          Green = learned, gold outline = can learn now, faded = not yet.
         </p>
       </div>
       <span class="iq">IQ {{ attrs.IQ }} · Spent {{ iqSpent }} · Left {{ iqLeft }}</span>

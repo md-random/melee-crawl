@@ -4,7 +4,7 @@ import { ITEMS } from '#shared/data/items'
 import { TALENTS } from '#shared/data/talents'
 import {
   addTalent, adjustedDx, attrPointsLeft, canTakeTalent, createCharacter, creationProblems,
-  dependentsOf, hasTalent, iqUsed, loadoutOf, planTalent, removeTalent
+  dependentsOf, hasTalent, iqUsed, loadoutOf, removeTalent
 } from '#shared/engine/rules'
 
 const attrs: Attributes = { ST: 12, DX: 12, IQ: 8 }
@@ -25,34 +25,14 @@ describe('talents', () => {
     expect(canTakeTalent(TALENTS.thickHide!, hero()).reasons).toContain('Creature only')
     const smart = { ST: 13, DX: 12, IQ: 12 }
     expect(canTakeTalent(TALENTS.toughness!, hero([], smart)).ok).toBe(true)
-    expect(canTakeTalent(TALENTS.toughness!, hero(addTalent([], 'toughness'), smart)).reasons).toContain('Needs ST 14 (have 13)')
+    expect(canTakeTalent(TALENTS.toughness2!, hero([], smart)).reasons).toContain('Needs Toughness I')
+    expect(canTakeTalent(TALENTS.toughness2!, hero(addTalent([], 'toughness'), smart)).reasons).toContain('Needs ST 14 (have 13)')
   })
 
   it('removing a prerequisite also removes what depended on it', () => {
     const smart = { ST: 12, DX: 12, IQ: 12 }
     const owned = addTalent(addTalent([], 'shield'), 'shieldExpertise')
     expect(removeTalent(owned, 'shield', undefined, smart)).toEqual([])
-  })
-
-  it('planning a talent pulls in missing prerequisites and totals the IQ', () => {
-    const smart = { ST: 12, DX: 11, IQ: 11 }
-    const shieldEx = planTalent('shieldExpertise', hero([], smart))
-    expect(shieldEx.steps.map(s => s.id)).toEqual(['shield', 'shieldExpertise'])
-    expect(shieldEx.iqCost).toBe(3)
-    expect(shieldEx.blockers).toEqual([])
-
-    const two = planTalent('twoWeapons', hero([], smart))
-    expect(two.steps.map(s => s.id)).toEqual(['dagger', 'twoWeapons'])
-    expect(two.blockers).toEqual([])
-    expect(planTalent('twoWeapons', hero(addTalent([], 'sword'), smart)).steps.map(s => s.id)).toEqual(['twoWeapons'])
-    expect(planTalent('twoWeapons', hero([], smart), undefined, ['axMace']).steps.map(s => s.id)).toEqual(['axMace', 'twoWeapons'])
-
-    const dull = { ST: 12, DX: 9, IQ: 9 }
-    expect(planTalent('twoWeapons', hero([], dull)).blockers).toEqual(['Needs IQ 11 (have 9)', 'Needs DX 11 (have 9)'])
-
-    const expert = planTalent('weaponExpertise', hero([], { ST: 12, DX: 12, IQ: 12 }), 'sword')
-    expect(expert.steps.map(s => s.id)).toEqual(['sword', 'weaponExpertise'])
-    expect(expert.iqCost).toBe(5)
   })
 
   it('reports talents that depend on one being removed', () => {
@@ -105,5 +85,20 @@ describe('character creation', () => {
     expect(gear.armor?.id).toBe('leather')
     expect(gear.shield).toBeUndefined()
     expect(c.base).toEqual(attrs)
+  })
+
+  it('allows a second weapon only with Two Weapons and its talent, and no shield', () => {
+    const two = { ...input, attrs: { ST: 12, DX: 11, IQ: 9 }, talents: addTalent(addTalent([], 'sword'), 'twoWeapons') }
+    expect(creationProblems({ ...two, offWeaponId: 'shortsword' })).not.toContain('Second weapon Shortsword needs Sword')
+    expect(creationProblems({ ...input, offWeaponId: 'shortsword' })).toContain('A second weapon needs Two Weapons')
+    expect(creationProblems({ ...two, offWeaponId: 'dagger' })).toContain('Second weapon Dagger needs Dagger')
+    expect(creationProblems({ ...two, offWeaponId: 'shortsword', shieldId: 'smallShield' })).toContain('No shield with a second weapon')
+  })
+
+  it('gives two of the same weapon separate instances', () => {
+    let n = 0
+    const c = createCharacter({ ...input, offWeaponId: 'broadsword' }, () => `id${n++}`)
+    expect(c.equipped.mainHand).not.toBe(c.equipped.offHand)
+    expect(loadoutOf(c).offWeapon?.id).toBe('broadsword')
   })
 })

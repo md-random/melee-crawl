@@ -78,65 +78,6 @@ export function canTakeTalent(node: TalentNode, ctx: TakeContext, weaponTalent?:
   return { ok: reasons.length === 0, reasons }
 }
 
-export interface TalentPlan {
-  /** Talents learned in order; the last is the one asked for, earlier ones are missing prerequisites. */
-  steps: { id: Id; weaponTalent?: Id }[]
-  iqCost: number
-  /** Non-talent reasons the plan can't be done now (attributes, min IQ, IQ budget). Empty = can learn. */
-  blockers: string[]
-  result: OwnedTalent[]
-}
-
-/**
- * Learning a talent pulls in any prerequisite talents it's missing, so
- * Shield Expertise learns Shield too. For "any of" prerequisites the cheapest option is picked.
- */
-export function planTalent(id: Id, ctx: TakeContext, weaponTalent?: Id, prefer: Id[] = []): TalentPlan {
-  const steps: TalentPlan['steps'] = []
-  const planned = (tid: Id, wt?: Id) =>
-    steps.some(s => s.id === tid && s.weaponTalent === wt) || (!wt && hasTalent(ctx.owned, tid)) || (wt && rankOf(ctx.owned, tid, wt) > 0)
-  /** Preferred talents first (e.g. the equipped weapon's), then the cheapest. */
-  const cheapest = (ids: Id[]) => ids.find(i => prefer.includes(i))
-    ?? [...ids].sort((a, b) => (TALENTS[a]?.iqCost ?? 99) - (TALENTS[b]?.iqCost ?? 99))[0]
-
-  const collect = (tid: Id, wt?: Id) => {
-    const node = TALENTS[tid]
-    if (!node) return
-    const walk = (req?: Requirement) => {
-      if (!req) return
-      if ('all' in req) req.all.forEach(walk)
-      else if ('any' in req) {
-        const met = req.any.some(r => missingRequirements(r, ctx.attrs, ctx.owned).length === 0 || ('talent' in r && planned(r.talent)))
-        const options = req.any.filter((r): r is { talent: Id } => 'talent' in r).map(r => r.talent)
-        const pick = cheapest(options)
-        if (!met && pick) collect(pick)
-      } else if ('talent' in req && !planned(req.talent)) collect(req.talent)
-    }
-    walk(node.requires)
-    if (node.perWeapon && wt && !planned(wt)) collect(wt)
-    steps.push(wt ? { id: tid, weaponTalent: wt } : { id: tid })
-  }
-  collect(id, weaponTalent)
-
-  let owned = ctx.owned
-  const blockers: string[] = []
-  for (const s of steps) {
-    const node = TALENTS[s.id]!
-    const check = canTakeTalent(node, { ...ctx, owned }, s.weaponTalent)
-    if (!check.ok) {
-      const prefix = s.id === id ? '' : `${node.name}: `
-      blockers.push(...check.reasons.map(r => prefix + r))
-    }
-    owned = addTalent(owned, s.id, s.weaponTalent)
-  }
-  // Report one IQ budget line for the whole plan instead of per step.
-  const iqCost = iqUsed(owned, ctx.cls) - iqUsed(ctx.owned, ctx.cls)
-  const free = ctx.attrs.IQ - iqUsed(ctx.owned, ctx.cls)
-  const filtered = blockers.filter(b => !/Costs \d+ IQ/.test(b))
-  if (iqCost > free) filtered.push(`Costs ${iqCost} IQ (${free} left)`)
-  return { steps, iqCost, blockers: [...new Set(filtered)], result: owned }
-}
-
 /** Talents that would be removed along with this one. */
 export function dependentsOf(owned: OwnedTalent[], id: Id, weaponTalent: Id | undefined, attrs: Attributes, cls: CharacterClass = 'hero'): OwnedTalent[] {
   const after = removeTalent(owned, id, weaponTalent, attrs, cls)
@@ -176,6 +117,8 @@ export function removeTalent(owned: OwnedTalent[], id: Id, weaponTalent: Id | un
 
 export interface Loadout {
   weapon?: WeaponDef
+  /** Second weapon in the off hand (Two Weapons talent). */
+  offWeapon?: WeaponDef
   armor?: ArmorDef
   shield?: ShieldDef
 }
@@ -198,11 +141,20 @@ export function movementAllowance(baseMA: number, gear: Loadout): number {
   return gear.armor ? Math.min(baseMA, gear.armor.maxMA) : baseMA
 }
 
-/** Problems with a loadout for this ST; empty when valid. */
-export function loadoutProblems(attrs: Attributes, gear: Loadout): string[] {
+/** Problems with a loadout for these attributes and talents; empty when valid. */
+export function loadoutProblems(attrs: Attributes, gear: Loadout, owned: OwnedTalent[] = []): string[] {
   const out: string[] = []
   if (gear.weapon && attrs.ST < gear.weapon.minST) out.push(`${gear.weapon.name} needs ST ${gear.weapon.minST}`)
   if (gear.weapon?.hands === 2 && gear.shield) out.push(`${gear.weapon.name} is two-handed; no shield`)
+  const off = gear.offWeapon
+  if (off) {
+    if (!hasTalent(owned, 'twoWeapons')) out.push('A second weapon needs Two Weapons')
+    if (!hasTalent(owned, off.talent)) out.push(`Second weapon ${off.name} needs ${TALENTS[off.talent]?.name ?? off.talent}`)
+    if (attrs.ST < off.minST) out.push(`Second weapon ${off.name} needs ST ${off.minST}`)
+    if (off.hands === 2) out.push(`Second weapon ${off.name} is two-handed`)
+    if (gear.weapon?.hands === 2) out.push(`${gear.weapon.name} is two-handed; no second weapon`)
+    if (gear.shield) out.push('No shield with a second weapon')
+  }
   return out
 }
 
@@ -216,6 +168,7 @@ export function loadoutOf(c: Pick<Character, 'inventory' | 'equipped'>): Loadout
   const off = def(c.equipped.offHand)
   return {
     weapon: weapon?.kind === 'weapon' ? weapon : undefined,
+    offWeapon: off?.kind === 'weapon' ? off : undefined,
     armor: body?.kind === 'armor' ? body : undefined,
     shield: off?.kind === 'shield' ? off : undefined
   }
@@ -228,6 +181,8 @@ export interface CreationInput {
   attrs: Attributes
   talents: OwnedTalent[]
   weaponId: Id
+  /** Second weapon; needs the Two Weapons talent. */
+  offWeaponId?: Id
   armorId?: Id
   shieldId?: Id
 }
@@ -248,23 +203,27 @@ export function creationProblems(input: CreationInput): string[] {
   const weapon = ITEMS[input.weaponId]
   if (weapon?.kind !== 'weapon') out.push('Choose a weapon')
   else {
+    const off = input.offWeaponId ? ITEMS[input.offWeaponId] : undefined
     const armor = input.armorId ? ITEMS[input.armorId] : undefined
     const shield = input.shieldId ? ITEMS[input.shieldId] : undefined
     out.push(...loadoutProblems(input.attrs, {
       weapon,
+      offWeapon: off?.kind === 'weapon' ? off : undefined,
       armor: armor?.kind === 'armor' ? armor : undefined,
       shield: shield?.kind === 'shield' ? shield : undefined
-    }))
+    }, input.talents))
   }
   return out
 }
 
 /** Builds a new level-0 hero. Call only when creationProblems() is empty. */
 export function createCharacter(input: CreationInput, newId: () => Id): Character {
-  const inventory = [input.weaponId, input.armorId, input.shieldId]
-    .filter((id): id is Id => !!id)
-    .map(defId => ({ uid: newId(), defId }))
-  const uidOf = (defId?: Id) => inventory.find(i => i.defId === defId)?.uid
+  // One instance per slot, so two of the same weapon get separate uids.
+  const slots = { mainHand: input.weaponId, offHand: input.offWeaponId ?? input.shieldId, body: input.armorId }
+  const uids = Object.fromEntries(Object.entries(slots).map(([slot, defId]) => [slot, defId ? newId() : undefined]))
+  const inventory = Object.entries(slots)
+    .filter(([, defId]) => !!defId)
+    .map(([slot, defId]) => ({ uid: uids[slot]!, defId: defId! }))
   return {
     id: newId(),
     name: input.name.trim(),
@@ -277,7 +236,7 @@ export function createCharacter(input: CreationInput, newId: () => Id): Characte
     xp: { earned: 0, unspent: 0 },
     gold: 0,
     inventory,
-    equipped: { mainHand: uidOf(input.weaponId), body: uidOf(input.armorId), offHand: uidOf(input.shieldId), belt: [] },
+    equipped: { mainHand: uids.mainHand, body: uids.body, offHand: uids.offHand, belt: [] },
     plannedTalents: [],
     stats: { battlesWon: 0, kills: 0, xpEarned: 0, goldEarned: 0, turnsSurvived: 0 }
   }

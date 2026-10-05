@@ -1,10 +1,10 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { Attributes, CharacterClass, OwnedTalent, TalentNode, WeaponDef } from '#shared/types'
+import type { Attributes, CharacterClass, OwnedTalent, TalentNode } from '#shared/types'
 import { weapons } from '#shared/data/items'
 import { NO_TALENT_DX_PENALTY } from '#shared/data/progression'
 import { TALENTS, WEAPON_TALENTS } from '#shared/data/talents'
 import {
-  addTalent, canTakeTalent, dependentsOf, hasTalent, iqUsed, planTalent, rankOf, removeTalent, type TalentPlan
+  addTalent, canTakeTalent, dependentsOf, hasTalent, iqUsed, rankOf, removeTalent, talentIqCost
 } from '#shared/engine/rules'
 
 export interface TalentRow {
@@ -16,7 +16,7 @@ export interface TalentRow {
   rank: number
   state: 'owned' | 'available' | 'locked'
   lines: string[]
-  plan: TalentPlan
+  canAdd: boolean
 }
 
 export interface TalentBranch { name: string; rows: TalentRow[] }
@@ -25,10 +25,10 @@ interface Options {
   attrs: MaybeRefOrGetter<Attributes>
   owned: MaybeRefOrGetter<OwnedTalent[]>
   cls: MaybeRefOrGetter<CharacterClass>
-  /** Equipped weapon: prerequisite choices lean toward its talent. */
-  weapon?: MaybeRefOrGetter<WeaponDef | undefined>
   /** Saved talents. They're permanent: never forgotten or pruned. */
   locked?: MaybeRefOrGetter<OwnedTalent[] | undefined>
+  /** Attribute points left to spend. "Raise IQ" advice shows only when above 0. */
+  attrPoints?: MaybeRefOrGetter<number | undefined>
 }
 
 const BRANCH_NAMES: Record<string, string> = {
@@ -55,14 +55,15 @@ function weaponsFor(talentId: string): string[] {
 }
 
 /** Turns rule reasons into plain instructions. */
-export function explainReason(reason: string): string {
-  const attr = reason.match(/^(?:(.+): )?Needs (ST|DX|IQ) (\d+) \(have (\d+)\)$/)
+export function explainReason(reason: string, canRaiseIQ: boolean): string {
+  const attr = reason.match(/^Needs (ST|DX|IQ) (\d+) \(have (\d+)\)$/)
   if (attr) {
-    const [, who, key, min, have] = attr
-    return `${who ? `${who} needs` : 'Needs'} ${key} ${min}. Yours is ${have}: raise ${key} by ${Number(min) - Number(have)}.`
+    const [, key, min, have] = attr
+    if (key === 'IQ' && !canRaiseIQ) return `Needs IQ ${min}. Yours is ${have}.`
+    return `Needs ${key} ${min}. Yours is ${have}: raise ${key} by ${Number(min) - Number(have)}.`
   }
   const iq = reason.match(/^Costs (\d+) IQ \((-?\d+) left\)$/)
-  if (iq) return `Costs ${iq[1]} IQ but you only have ${iq[2]} left. Raise IQ or forget another talent.`
+  if (iq) return `Costs ${iq[1]} IQ but you only have ${iq[2]} left. ${canRaiseIQ ? 'Raise IQ or forget' : 'Forget'} another talent.`
   if (reason === 'Already at max rank') return 'Fully learned.'
   return reason
 }
@@ -76,8 +77,7 @@ export function useTalents(opts: Options) {
   const owned = computed(() => toValue(opts.owned))
   const cls = computed(() => toValue(opts.cls))
   const locked = computed(() => toValue(opts.locked) ?? [])
-  const weapon = computed(() => toValue(opts.weapon))
-  const prefer = computed(() => (weapon.value ? [weapon.value.talent] : []))
+  const explain = (reason: string) => explainReason(reason, (toValue(opts.attrPoints) ?? 0) > 0)
 
   const iqSpent = computed(() => iqUsed(owned.value, cls.value))
   const iqLeft = computed(() => attrs.value.IQ - iqSpent.value)
@@ -85,43 +85,29 @@ export function useTalents(opts: Options) {
   const ctx = () => ({ attrs: attrs.value, owned: owned.value, cls: cls.value, audience: 'hero' as const })
   const isLocked = (id: string, wt?: string) => locked.value.some(t => t.id === id && t.weaponTalent === wt)
 
-  /** "the Sword talent (for your Shortsword)" / "the Dagger talent (for Dagger)" */
-  function talentPhrase(s: { id: string; weaponTalent?: string }): string {
-    const t = TALENTS[s.id]!
-    if (s.weaponTalent) return `${t.name} (${TALENTS[s.weaponTalent]!.name})`
-    const uses = weaponsFor(s.id)
-    if (!uses.length) return `the ${t.name} talent`
-    const w = weapon.value
-    return w && uses.includes(w.name) ? `the ${t.name} talent (for your ${w.name})` : `the ${t.name} talent (for ${uses.join(', ')})`
-  }
-  const names = (ids: { id: string; weaponTalent?: string }[]) => ids.map(talentPhrase).join(', ')
-
   function rowFor(r: { node: TalentNode; weaponTalent?: string; label: string }): TalentRow {
     const { node, weaponTalent } = r
     const rank = rankOf(owned.value, node.id, weaponTalent)
-    const plan = planTalent(node.id, ctx(), weaponTalent, prefer.value)
-    const canAdd = plan.blockers.length === 0
-    const extra = plan.steps.slice(0, -1)
+    const check = canTakeTalent(node, ctx(), weaponTalent)
+    const canAdd = check.ok
+    const cost = talentIqCost(node, owned.value, cls.value)
     const lines: string[] = []
 
     if (rank > 0) {
-      if (canAdd) lines.push(`Learned, rank ${rank} of ${node.maxRanks}. Click to raise to rank ${rank + 1} for ${plan.iqCost} IQ.`)
+      if (canAdd) lines.push(`Learned, rank ${rank} of ${node.maxRanks}. Click to raise to rank ${rank + 1} for ${cost} IQ.`)
       else if (isLocked(node.id, weaponTalent)) lines.push(`Learned${node.maxRanks > 1 ? `, rank ${rank} of ${node.maxRanks}` : ''}. Permanent.`)
       else {
         const after = removeTalent(owned.value, node.id, weaponTalent, attrs.value, cls.value)
         const refund = iqSpent.value - iqUsed(after, cls.value)
         const deps = dependentsOf(owned.value, node.id, weaponTalent, attrs.value, cls.value)
-        lines.push(`Learned${node.maxRanks > 1 ? `, rank ${rank} of ${node.maxRanks}` : ''}. Click to forget it and get ${refund} IQ back.`)
-        if (deps.length) lines.push(`Forgetting it also forgets ${names(deps)}.`)
+        const depNames = deps.map(d => d.weaponTalent ? `${TALENTS[d.id]!.name} (${TALENTS[d.weaponTalent]!.name})` : TALENTS[d.id]!.name)
+        lines.push(`Click to forget: +${refund} IQ.${deps.length ? ` Also forgets ${depNames.join(', ')}` : ''}`)
       }
-      if (!canAdd && rank < node.maxRanks) lines.push(...plan.blockers.map(explainReason))
+      if (!canAdd && rank < node.maxRanks) lines.push(...check.reasons.map(explain))
     } else if (canAdd) {
-      lines.push(extra.length
-        ? `Click to learn. Also learns ${names(extra)}, which it needs. Total ${plan.iqCost} IQ.`
-        : `Click to learn for ${plan.iqCost} IQ.`)
+      lines.push(`Click to learn for ${cost} IQ.`)
     } else {
-      if (extra.length) lines.push(`Also needs ${names(extra)}. Learning this learns it too. Total ${plan.iqCost} IQ.`)
-      lines.push(...plan.blockers.map(explainReason))
+      lines.push(...check.reasons.map(explain))
     }
 
     const uses = weaponsFor(weaponTalent ?? node.id)
@@ -132,16 +118,16 @@ export function useTalents(opts: Options) {
       rank,
       state: rank > 0 ? 'owned' : canAdd ? 'available' : 'locked',
       lines,
-      plan
+      canAdd
     }
   }
 
   /** Every tile's state and text, worked out once per change. */
   const branches = computed<TalentBranch[]>(() => LAYOUT.map(b => ({ name: b.name, rows: b.rows.map(rowFor) })))
 
-  /** New talent list after clicking a tile: learn (with prerequisites), next rank, or forget. */
+  /** New talent list after clicking a tile: learn, next rank, or forget. */
   function toggle(row: TalentRow): OwnedTalent[] {
-    if (row.plan.blockers.length === 0) return row.plan.result
+    if (row.canAdd) return addTalent(owned.value, row.node.id, row.weaponTalent)
     if (row.rank > 0 && !isLocked(row.node.id, row.weaponTalent)) {
       return removeTalent(owned.value, row.node.id, row.weaponTalent, attrs.value, cls.value)
     }
@@ -165,11 +151,11 @@ export function useTalents(opts: Options) {
   function talentNote(talentId: string, what: string): string {
     const t = TALENTS[talentId]!
     if (hasTalent(owned.value, talentId)) return `You know ${t.name}, so no penalty.`
-    const plan = planTalent(talentId, ctx())
+    const check = canTakeTalent(t, ctx())
     return `You don't know ${t.name}: −${NO_TALENT_DX_PENALTY} DX while using ${what}. `
-      + (plan.blockers.length
-        ? `You can't learn it yet: ${plan.blockers.map(explainReason).join(' ')}`
-        : `Learn ${t.name} in Talents for ${plan.iqCost} IQ to remove this.`)
+      + (check.ok
+        ? `Learn ${t.name} in Talents for ${talentIqCost(t, owned.value, cls.value)} IQ to remove this.`
+        : `You can't learn it yet: ${check.reasons.map(explain).join(' ')}`)
   }
 
   return { branches, iqSpent, iqLeft, toggle, prune, talentNote }

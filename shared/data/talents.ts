@@ -36,8 +36,12 @@ const NODES: Node[] = [
     iqCost: 2, minIQ: 10, requires: { talent: 'shield' }
   }),
   official({
-    id: 'toughness', name: 'Toughness', description: 'Shrug off damage. Two ranks.', category: 'defense', icon: '💪', branch: 'defense', pos: { col: 6, row: 1 },
-    iqCost: 2, minIQ: 9, maxRanks: 2, requires: { attr: 'ST', min: 12 }, rankRequires: { 2: { attr: 'ST', min: 14 } }
+    id: 'toughness', name: 'Toughness I', description: 'Shrug off damage.', category: 'defense', icon: '💪', branch: 'defense', pos: { col: 6, row: 1 },
+    iqCost: 2, minIQ: 9, requires: { attr: 'ST', min: 12 }
+  }),
+  official({
+    id: 'toughness2', name: 'Toughness II', description: 'Shrug off damage.', category: 'defense', icon: '💪', branch: 'defense', pos: { col: 6, row: 2 },
+    iqCost: 2, minIQ: 9, requires: { all: [{ talent: 'toughness' }, { attr: 'ST', min: 14 }] }
   }),
 
   // ---------- unarmed ----------
@@ -49,9 +53,9 @@ const NODES: Node[] = [
 
   // ---------- mastery ----------
   official({
-    id: 'twoWeapons', name: 'Two Weapons', description: 'Fight with a weapon in each hand. Needs talents for both weapons.', category: 'attack', icon: '⚔', branch: 'mastery', pos: { col: 0, row: 3 },
+    id: 'twoWeapons', name: 'Two Weapons', description: 'A weapon in each hand: two of the same, or two different ones if you know both talents.', category: 'attack', icon: '⚔', branch: 'mastery', pos: { col: 0, row: 3 },
     iqCost: 2, minIQ: 11,
-    // Official text: talents for both weapons. Approximated as "any weapon talent"; the engine checks the actual pair.
+    // Needs one weapon talent; loadoutProblems() checks the second weapon's talent.
     requires: { all: [{ attr: 'DX', min: 11 }, { any: [{ talent: 'dagger' }, { talent: 'sword' }, { talent: 'axMace' }] }] }
   }),
   official({

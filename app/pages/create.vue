@@ -2,7 +2,7 @@
 import type { AttrKey, Attributes, OwnedTalent } from '#shared/types'
 import { ITEMS, armors, shields, weapons } from '#shared/data/items'
 import { BASE_MA, PROGRESSION } from '#shared/data/progression'
-import { adjustedDx, attrPointsLeft, createCharacter, creationProblems, movementAllowance } from '#shared/engine/rules'
+import { adjustedDx, attrPointsLeft, createCharacter, creationProblems, hasTalent, movementAllowance } from '#shared/engine/rules'
 import { useTalents } from '~/composables/useTalents'
 import { useGameStore } from '~/stores/game'
 
@@ -12,6 +12,7 @@ const name = ref('')
 const attrs = ref<Attributes>({ ST: 8 + 3, DX: 8 + 3, IQ: 8 + 2 })
 const talents = ref<OwnedTalent[]>([])
 const weaponId = ref('shortsword')
+const offWeaponId = ref('')
 const armorId = ref('')
 const shieldId = ref('')
 
@@ -46,23 +47,45 @@ const pointsText = computed(() =>
 
 const gear = computed(() => {
   const w = ITEMS[weaponId.value]
+  const o = ITEMS[offWeaponId.value]
   const a = ITEMS[armorId.value]
   const s = ITEMS[shieldId.value]
   return {
     weapon: w?.kind === 'weapon' ? w : undefined,
+    offWeapon: o?.kind === 'weapon' ? o : undefined,
     armor: a?.kind === 'armor' ? a : undefined,
     shield: s?.kind === 'shield' ? s : undefined
   }
 })
 
+const knowsTwoWeapons = computed(() => hasTalent(talents.value, 'twoWeapons'))
+const offWeaponOff = computed(() => gear.value.weapon?.hands === 2)
+const shieldOff = computed(() => gear.value.weapon?.hands === 2 || !!gear.value.offWeapon)
+
 watch(() => gear.value.weapon?.hands, (hands) => {
-  if (hands === 2) shieldId.value = ''
+  if (hands === 2) {
+    shieldId.value = ''
+    offWeaponId.value = ''
+  }
 })
+watch(knowsTwoWeapons, (knows) => {
+  if (!knows) offWeaponId.value = ''
+})
+watch(offWeaponId, (id) => {
+  if (id) shieldId.value = ''
+})
+
+/** Why a one-handed weapon can't be the second weapon, or '' if it can. */
+function offWeaponBlock(w: { minST: number; talent: string }): string {
+  if (attrs.value.ST < w.minST) return 'too heavy'
+  if (!hasTalent(talents.value, w.talent)) return 'no talent'
+  return ''
+}
 
 const dmg = (d: { dice: number; mod: number }) => `${d.dice}d${d.mod ? (d.mod > 0 ? `+${d.mod}` : d.mod) : ''}`
 
 // Same talent logic as the picker, for the equipment notes and IQ line.
-const { iqSpent, talentNote } = useTalents({ attrs, owned: talents, cls: 'hero', weapon: () => gear.value.weapon })
+const { iqSpent, talentNote } = useTalents({ attrs, owned: talents, cls: 'hero', attrPoints: pointsLeft })
 
 const weaponText = computed(() => {
   const w = gear.value.weapon
@@ -71,6 +94,13 @@ const weaponText = computed(() => {
   if (attrs.value.ST < w.minST) lines.push(`Your ST is ${attrs.value.ST}: raise ST by ${w.minST - attrs.value.ST} or pick a lighter weapon.`)
   lines.push(talentNote(w.talent, 'it'))
   return lines
+})
+
+const offWeaponText = computed(() => {
+  const w = gear.value.offWeapon
+  if (gear.value.weapon?.hands === 2) return ['Your weapon needs both hands, so no second weapon.']
+  if (!w) return ['No second weapon.']
+  return [`${w.name}: ${dmg(w.damage)} damage, one hand. Needs ST ${w.minST}.`]
 })
 
 const armorText = computed(() => {
@@ -82,6 +112,7 @@ const armorText = computed(() => {
 const shieldText = computed(() => {
   const s = gear.value.shield
   if (gear.value.weapon?.hands === 2) return ['Your weapon needs both hands, so no shield.']
+  if (gear.value.offWeapon) return ['You hold a second weapon, so no shield.']
   if (!s) return ['No shield.']
   return [
     `${s.name} stops ${s.hitsStopped} more damage from every hit${s.dxPenalty ? ` and costs ${s.dxPenalty} DX` : ''}.`,
@@ -117,6 +148,7 @@ const input = computed(() => ({
   attrs: attrs.value,
   talents: talents.value,
   weaponId: weaponId.value,
+  offWeaponId: offWeaponId.value || undefined,
   armorId: armorId.value || undefined,
   shieldId: shieldId.value || undefined
 }))
@@ -161,6 +193,24 @@ function start() {
         </label>
         <p v-for="l in weaponText" :key="l" class="note">{{ l }}</p>
 
+        <template v-if="knowsTwoWeapons">
+          <label :class="['field', { off: offWeaponOff }]">
+            Second weapon
+            <select v-model="offWeaponId" :disabled="offWeaponOff">
+              <option value="">None</option>
+              <option
+                v-for="w in weapons().filter(w => w.hands === 1)"
+                :key="w.id"
+                :value="w.id"
+                :disabled="!!offWeaponBlock(w)"
+              >
+                {{ w.name }} · {{ dmg(w.damage) }} · ST {{ w.minST }}{{ offWeaponBlock(w) ? ` (${offWeaponBlock(w)})` : '' }}
+              </option>
+            </select>
+          </label>
+          <p v-for="l in offWeaponText" :key="l" :class="['note', { blocked: offWeaponOff }]">{{ l }}</p>
+        </template>
+
         <label class="field">
           Armor
           <select v-model="armorId">
@@ -170,14 +220,14 @@ function start() {
         </label>
         <p v-for="l in armorText" :key="l" class="note">{{ l }}</p>
 
-        <label class="field">
+        <label :class="['field', { off: shieldOff }]">
           Shield
-          <select v-model="shieldId" :disabled="gear.weapon?.hands === 2">
+          <select v-model="shieldId" :disabled="shieldOff">
             <option value="">None</option>
             <option v-for="s in shields()" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
         </label>
-        <p v-for="l in shieldText" :key="l" class="note">{{ l }}</p>
+        <p v-for="l in shieldText" :key="l" :class="['note', { blocked: shieldOff }]">{{ l }}</p>
 
         <h2>Your hero</h2>
         <p v-for="l in summaryText" :key="l" class="note strong">{{ l }}</p>
@@ -189,7 +239,7 @@ function start() {
       </section>
 
       <section class="box">
-        <TalentPicker v-model="talents" :attrs="attrs" cls="hero" :weapon="gear.weapon" />
+        <TalentPicker v-model="talents" :attrs="attrs" cls="hero" :attr-points="pointsLeft" />
       </section>
     </div>
   </div>
@@ -276,6 +326,21 @@ h2:first-child {
   gap: 4px;
   margin: 10px 0 4px;
   font-size: 0.9rem;
+}
+
+.field.off {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.field.off select {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.note.blocked {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .problems {
