@@ -13,10 +13,13 @@ export interface TalentRow {
   weaponTalent?: string
   label: string
   weaponLine: string
+  /** For a per-weapon tile: how many weapons it's learned for. */
   rank: number
   state: 'owned' | 'available' | 'locked'
   lines: string[]
   canAdd: boolean
+  /** Per-weapon talents are one tile with a choice for each weapon talent known. */
+  weapons?: TalentRow[]
 }
 
 export interface TalentBranch { name: string; rows: TalentRow[] }
@@ -36,14 +39,12 @@ const BRANCH_NAMES: Record<string, string> = {
   defense: 'Defense', unarmed: 'Unarmed', mobility: 'Mobility', mastery: 'Mastery'
 }
 
-/** Static tile list: hero-visible talents by branch, one row per weapon for per-weapon talents. */
+/** Static tile list: hero-visible talents by branch, one tile per talent. */
 const LAYOUT = Object.entries(BRANCH_NAMES).map(([branch, name]) => {
-  const rows: { node: TalentNode; weaponTalent?: string; label: string }[] = []
+  const rows: { node: TalentNode; label: string }[] = []
   for (const node of Object.values(TALENTS)) {
     if (node.branch !== branch || node.for === 'creature') continue
-    if (node.perWeapon) {
-      for (const w of WEAPON_TALENTS) rows.push({ node, weaponTalent: w, label: `${node.name} (${TALENTS[w]!.name})` })
-    } else rows.push({ node, label: node.name })
+    rows.push({ node, label: node.name })
   }
   rows.sort((a, b) => a.node.pos.row - b.node.pos.row || a.node.pos.col - b.node.pos.col)
   return { name, rows }
@@ -122,8 +123,36 @@ export function useTalents(opts: Options) {
     }
   }
 
+  /** One tile for a per-weapon talent, with a choice for each weapon talent known. */
+  function perWeaponRow(node: TalentNode): TalentRow {
+    const weapons = WEAPON_TALENTS
+      .filter(w => hasTalent(owned.value, w) || rankOf(owned.value, node.id, w) > 0)
+      .map(w => rowFor({ node, weaponTalent: w, label: TALENTS[w]!.name }))
+    const learned = weapons.filter(w => w.rank > 0).length
+    const anyAvailable = weapons.some(w => w.canAdd)
+    // Reasons that hold whichever weapon is picked (IQ, DX).
+    const general = canTakeTalent(node, ctx()).reasons.filter(r => r !== 'Choose a weapon talent').map(explain)
+    const lines = !weapons.length
+      ? ['Learn a weapon talent first.', ...general]
+      : anyAvailable ? [`Click a weapon to learn it for ${talentIqCost(node, owned.value, cls.value)} IQ.`] : general
+    return {
+      key: `${node.id}:`,
+      node,
+      label: node.name,
+      weaponLine: '',
+      rank: learned,
+      state: learned ? 'owned' : anyAvailable ? 'available' : 'locked',
+      lines,
+      canAdd: false,
+      weapons
+    }
+  }
+
   /** Every tile's state and text, worked out once per change. */
-  const branches = computed<TalentBranch[]>(() => LAYOUT.map(b => ({ name: b.name, rows: b.rows.map(rowFor) })))
+  const branches = computed<TalentBranch[]>(() => LAYOUT.map(b => ({
+    name: b.name,
+    rows: b.rows.map(r => (r.node.perWeapon ? perWeaponRow(r.node) : rowFor(r)))
+  })))
 
   /** New talent list after clicking a tile: learn, next rank, or forget. */
   function toggle(row: TalentRow): OwnedTalent[] {

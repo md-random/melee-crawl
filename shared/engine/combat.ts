@@ -319,8 +319,9 @@ export function dealDamage(
   const lost = Math.max(0, raw - stopped)
   const events: GameEvent[] = []
   if (!isAlive(target)) return { lost: 0, events }
-  target.stCurrent -= lost
-  events.push(ev(state, { kind: 'damage', unit: target.uid, amount: lost, stopped, source }))
+  // ST stops at 0; `amount` still reports the full damage.
+  target.stCurrent = Math.max(0, target.stCurrent - lost)
+  events.push(ev(state, { kind: 'damage', unit: target.uid, amount: lost, stopped, source, left: target.stCurrent }))
   if (!isAlive(target)) events.push(...killUnit(state, target, by))
   return { lost, events }
 }

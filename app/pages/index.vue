@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DiceExpr, Facing, GameEvent, Hex, HexKey, OwnedTalent, TalentCategory, Unit } from '#shared/types'
+import type { DiceExpr, GameEvent, Hex, HexKey, OwnedTalent, TalentCategory, Unit } from '#shared/types'
 import { ARCHETYPES } from '#shared/data/creatures'
 import { TALENTS } from '#shared/data/talents'
 import { TRAITS } from '#shared/data/traits'
@@ -10,8 +10,8 @@ import {
 } from '#shared/engine/combat'
 import { findPath, lineOfSight } from '#shared/engine/pathfinding'
 import { adjustedDx } from '#shared/engine/rules'
-import { hexEquals, hexKey } from '#shared/utils/hex'
-import { FACING_NAMES, PHASE_NAMES, describeEvent } from '~/composables/battleText'
+import { hexEquals, hexKey, neighbors } from '#shared/utils/hex'
+import { PHASE_NAMES } from '~/composables/battleText'
 import { useGameStore } from '~/stores/game'
 
 // Battle screen: shows the engine's state and sends the player's choices to it.
@@ -35,7 +35,6 @@ const opponents = computed(() => units.value.filter(u => u.side === 'enemy'))
 const tokens = computed(() => units.value.filter(isAlive))
 const pending = computed(() => battle.value?.pending)
 const active = computed(() => (pending.value && battle.value ? battle.value.units[pending.value.unitUid] : undefined))
-const tab = ref<'action' | 'log'>('action')
 
 const error = ref('')
 function send(input: PlayerInput) {
@@ -89,7 +88,15 @@ const recentRolls = computed(() => events.value.filter(e => e.kind === 'roll').s
 
 const hovered = ref<Hex | null>(null)
 
-const reach = computed(() => (pending.value?.kind === 'move' ? new Set<HexKey>(pending.value.reachable) : undefined))
+/** Lit hexes: where you can move, or the six neighbours to click when choosing a facing. */
+const reach = computed(() => {
+  const p = pending.value
+  if (p?.kind === 'move') return new Set<HexKey>(p.reachable)
+  if (p?.kind === 'chooseFacing' && active.value && map.value) {
+    return new Set(neighbors(active.value.pos).map(hexKey).filter(k => map.value!.hexes.has(k)))
+  }
+  return undefined
+})
 
 const path = computed(() => {
   const b = battle.value
@@ -142,14 +149,12 @@ const prompt = computed(() => {
   if (!p || !u) return ''
   switch (p.kind) {
     case 'move': return `${u.name}: click a lit hex to move (MA ${maOf(u)}), or your own hex to stay.`
-    case 'chooseFacing': return `${u.name}: click a hex to face it, or pick a direction.`
+    case 'chooseFacing': return `${u.name}: click a lit hex to face that way.`
     case 'chooseAction': return `${u.name}: choose an action.`
     case 'chooseTarget': return `${u.name}: choose a target.`
   }
   return ''
 })
-
-const narration = computed(() => events.value.filter(e => e.kind === 'narrate').slice(-12))
 
 const killerName = computed(() => {
   const b = battle.value
@@ -206,7 +211,7 @@ function abandon() {
             <div class="portrait">⚔</div>
             <dl>
               <dt>Name</dt><dd>{{ hero.name }}</dd>
-              <dt>ST</dt><dd>{{ hero.stCurrent }} / {{ hero.base.ST }}</dd>
+              <dt>ST</dt><dd>{{ Math.max(0, hero.stCurrent) }} / {{ hero.base.ST }}</dd>
               <dt>DX</dt><dd>{{ hero.base.DX }}</dd>
               <dt>adj DX</dt>
               <dd :title="dxParts(hero)" class="hint">{{ adjDxOf(hero) }}</dd>
@@ -262,24 +267,7 @@ function abandon() {
           @hover="hovered = $event"
           @select="onSelect"
         />
-        <ResolutionPanel :battle="battle" :events="events" />
-      </section>
-
-      <ActionModal
-        :battle="battle"
-        :pending="pending"
-        :unit="active"
-        @action="send({ kind: 'action', choice: $event })"
-        @target="send({ kind: 'target', target: $event })"
-      />
-
-      <section class="box bottom">
-        <div class="tabs">
-          <button :class="{ active: tab === 'action' }" @click="tab = 'action'">Action</button>
-          <button :class="{ active: tab === 'log' }" @click="tab = 'log'">Log</button>
-        </div>
-
-        <div v-if="tab === 'action'" class="tab-body">
+        <ResolutionPanel :battle="battle" :events="events">
           <div v-if="battle.phase === 'victory'" class="banner win">
             Victory!
             <button @click="nextBattle">Next battle</button>
@@ -290,20 +278,18 @@ function abandon() {
           </div>
           <template v-else>
             <p class="prompt">{{ prompt }}</p>
-            <div v-if="pending?.kind === 'chooseFacing'" class="controls">
-              <button v-for="(n, f) in FACING_NAMES" :key="n" @click="send({ kind: 'face', facing: f as Facing })">{{ n }}</button>
-            </div>
-                    <p v-if="error" class="error">{{ error }}</p>
+            <p v-if="error" class="error">{{ error }}</p>
           </template>
-          <ul class="narration">
-            <li v-for="e in narration" :key="e.at">{{ e.kind === 'narrate' ? e.text : '' }}</li>
-          </ul>
-        </div>
-
-        <ol v-else class="tab-body log">
-          <li v-for="e in events" :key="e.at"><span class="muted">R{{ e.round }}</span> {{ describeEvent(battle, e) }}</li>
-        </ol>
+        </ResolutionPanel>
       </section>
+
+      <ActionModal
+        :battle="battle"
+        :pending="pending"
+        :unit="active"
+        @action="send({ kind: 'action', choice: $event })"
+        @target="send({ kind: 'target', target: $event })"
+      />
     </div>
   </div>
 </template>
@@ -347,10 +333,6 @@ function abandon() {
   letter-spacing: 0.08em;
   color: var(--muted);
   margin: 0 0 8px;
-}
-
-.bottom {
-  grid-column: 1 / -1;
 }
 
 .hero {
@@ -435,31 +417,6 @@ dd {
   display: block;
   height: 100%;
   background: #b8382c;
-}
-
-.tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.tabs .active {
-  border-color: var(--accent);
-}
-
-.tab-body {
-  min-height: 80px;
-  max-height: 200px;
-  overflow-y: auto;
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.log {
-  padding-left: 0;
-  list-style: none;
-  font-family: ui-monospace, monospace;
-  font-size: 0.8rem;
 }
 
 .abandon {
@@ -574,7 +531,7 @@ dd {
 }
 
 .prompt {
-  margin: 0 0 8px;
+  margin: 0;
 }
 
 .controls {
@@ -589,7 +546,6 @@ dd {
   align-items: center;
   gap: 12px;
   font-weight: 600;
-  margin-bottom: 8px;
 }
 
 .banner.win {
@@ -600,15 +556,8 @@ dd {
   color: #e07a6a;
 }
 
-.narration {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
 .error {
+  margin: 4px 0 0;
   color: #e07a6a;
   font-size: 0.85rem;
 }

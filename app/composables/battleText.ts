@@ -27,7 +27,7 @@ export function describeEvent(state: BattleState, e: GameEvent): string {
     case 'move': return `${name(e.unit)} moves ${hexKey(e.from)} → ${hexKey(e.to)}`
     case 'face': return `${name(e.unit)} faces ${FACING_NAMES[e.facing] ?? e.facing}`
     case 'attack': return `${name(e.unit)} attacks ${name(e.target)} with ${e.weapon}`
-    case 'damage': return `${name(e.unit)} takes ${e.amount} damage from ${e.source}${e.stopped ? ` (${e.stopped} stopped)` : ''}`
+    case 'damage': return `${name(e.unit)} takes ${e.amount} damage from ${e.source}${e.stopped ? ` (${e.stopped} stopped)` : ''} (${e.left} left)`
     case 'heal': return `${name(e.unit)} heals ${e.amount} from ${e.source}`
     case 'effectAdded': return `${e.effect.source.name} takes effect${e.effect.targetUnit ? ` on ${name(e.effect.targetUnit)}` : ''}`
     case 'effectRemoved': return `Effect ${e.effectUid} ends (${e.reason})`

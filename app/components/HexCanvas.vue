@@ -25,6 +25,9 @@ const emit = defineEmits<{
 
 const SQRT3 = Math.sqrt(3)
 
+/** Hexes are drawn at this fraction of the largest size that fits. */
+const HEX_SCALE = 0.85
+
 const COLORS = {
   ground: '#e2d3ac',
   grid: '#8b7650',
@@ -450,7 +453,7 @@ function relayout() {
   if (availW === 0) return
 
   const b = bounds.value
-  hexSize = Math.min(availW / b.w, availH / b.h)
+  hexSize = Math.min(availW / b.w, availH / b.h) * HEX_SCALE
   const w = Math.floor(b.w * hexSize)
   const h = Math.floor(b.h * hexSize)
   cssSize.value = { w, h }

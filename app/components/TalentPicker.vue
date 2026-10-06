@@ -50,18 +50,32 @@ watch(() => props.attrs, () => {
     <div class="branches">
       <div v-for="b in branches" :key="b.name" class="branch">
         <h3>{{ b.name }}</h3>
-        <button
-          v-for="row in b.rows"
-          :key="row.key"
-          :class="['talent', row.state]"
-          @click="onClick(row)"
-        >
-          <span class="icon">{{ row.node.icon }}</span>
-          <span class="tname">{{ row.label }}</span>
-          <span class="desc">{{ row.node.description }}</span>
-          <span v-if="row.weaponLine" class="desc">{{ row.weaponLine }}</span>
-          <span v-for="l in row.lines" :key="l" class="why">{{ l }}</span>
-        </button>
+        <template v-for="row in b.rows" :key="row.key">
+          <div v-if="row.weapons" :class="['talent', row.state]">
+            <span class="icon">{{ row.node.icon }}</span>
+            <span class="tname">{{ row.label }}</span>
+            <span class="desc">{{ row.node.description }}</span>
+            <span v-if="row.weapons.length" class="weapons">
+              <button
+                v-for="w in row.weapons"
+                :key="w.key"
+                :class="['weapon', w.state]"
+                :title="w.lines.join(' ')"
+                @click="onClick(w)"
+              >
+                {{ w.label }}
+              </button>
+            </span>
+            <span v-for="l in row.lines" :key="l" class="why">{{ l }}</span>
+          </div>
+          <button v-else :class="['talent', row.state]" @click="onClick(row)">
+            <span class="icon">{{ row.node.icon }}</span>
+            <span class="tname">{{ row.label }}</span>
+            <span class="desc">{{ row.node.description }}</span>
+            <span v-if="row.weaponLine" class="desc">{{ row.weaponLine }}</span>
+            <span v-for="l in row.lines" :key="l" class="why">{{ l }}</span>
+          </button>
+        </template>
       </div>
     </div>
   </div>
@@ -121,6 +135,35 @@ h3 {
   align-items: start;
   font-size: 0.85rem;
   padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.weapons {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+
+.weapon {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+}
+
+.weapon.owned {
+  background: #3a5226;
+  border-color: #7fa64e;
+}
+
+.weapon.available {
+  border-color: var(--accent);
+}
+
+.weapon.locked {
+  opacity: 0.6;
 }
 
 .tname {

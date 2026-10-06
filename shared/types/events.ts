@@ -19,7 +19,8 @@ export type GameEvent = { round: number; at: number } & (
   | { kind: 'move'; unit: Id; from: Hex; to: Hex }
   | { kind: 'face'; unit: Id; facing: number }
   | { kind: 'attack'; unit: Id; target: Id; weapon: string }
-  | { kind: 'damage'; unit: Id; amount: number; stopped: number; source: string }
+  /** `left` is the unit's ST right after this damage. */
+  | { kind: 'damage'; unit: Id; amount: number; stopped: number; source: string; left: number }
   | { kind: 'heal'; unit: Id; amount: number; source: string }
   | { kind: 'effectAdded'; effect: ActiveEffect }
   | { kind: 'effectRemoved'; effectUid: Id; reason: 'expired' | 'dispelled' | 'ownerDied' }
