@@ -33,6 +33,12 @@ export const BIOMES: Record<Biome, BiomeProfile> = {
   rocky: { density: { tree: 0.03, boulder: 0.15, water: 0.02 }, clusterSize: [2, 6] }
 }
 
+/** The biome for a battle seed; every biome is equally likely. */
+export function biomeFor(seed: number): Biome {
+  const all = Object.keys(BIOMES) as Biome[]
+  return all[Math.abs(seed) % all.length]!
+}
+
 const MAX_ATTEMPTS = 20
 
 export type MapParams = Pick<MapState, 'seed' | 'biome' | 'width' | 'height'>

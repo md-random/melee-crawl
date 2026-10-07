@@ -5,6 +5,7 @@ import { SCHEMA_VERSION } from '#shared/types'
 import { TALENTS } from '#shared/data/talents'
 import { advance, createBattle, submit, type PlayerInput } from '#shared/engine/battle'
 import { isAlive } from '#shared/engine/combat'
+import { biomeFor } from '#shared/engine/mapgen'
 import { randomSpec } from '#shared/engine/opponents'
 import { loadSave } from '#shared/engine/save'
 import { levelOf } from '#shared/engine/rules'
@@ -63,7 +64,7 @@ export const useGameStore = defineStore('game', {
         seed,
         character: toRaw(run.character),
         opponents,
-        biome: 'forest'
+        biome: biomeFor(seed)
       })
       const events = advance(battle)
       run.battle = battle
@@ -86,12 +87,22 @@ export const useGameStore = defineStore('game', {
       return events
     },
 
-    /** After a win: count it and clear the battle. Healing is automatic, since the next battle starts from full ST. */
+    /**
+     * After a win: add the rewards, count it and clear the battle.
+     * Healing is automatic, since the next battle starts from full ST.
+     */
     finishVictory() {
       const run = this.save.run
       const battle = run?.battle
       if (!run || battle?.phase !== 'victory') return
-      const stats = run.character.stats
+      const c = run.character
+      const stats = c.stats
+      const rewards = battle.rewards ?? { xp: 0, gold: 0 }
+      c.xp.earned += rewards.xp
+      c.xp.unspent += rewards.xp
+      c.gold += rewards.gold
+      stats.xpEarned += rewards.xp
+      stats.goldEarned += rewards.gold
       stats.battlesWon++
       stats.kills += Object.values(battle.units).filter(u => u.side === 'enemy' && !isAlive(u)).length
       stats.turnsSurvived += battle.round

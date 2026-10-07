@@ -269,7 +269,7 @@ function abandon() {
         />
         <ResolutionPanel :battle="battle" :events="events">
           <div v-if="battle.phase === 'victory'" class="banner win">
-            Victory!
+            <span>Victory!<template v-if="battle.rewards"> +{{ battle.rewards.xp }} XP · +{{ battle.rewards.gold }} gold</template></span>
             <button @click="nextBattle">Next battle</button>
           </div>
           <div v-else-if="battle.phase === 'defeat'" class="banner lose">

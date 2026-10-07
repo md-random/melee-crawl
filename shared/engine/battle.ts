@@ -170,10 +170,26 @@ function setPhase(state: BattleState, phase: Phase, out: GameEvent[]) {
   out.push(ev(state, { kind: 'phase', phase }))
 }
 
+/** XP is the total of the opponents' XP values; gold is their gold dice, rolled with the battle's dice. */
+function victoryRewards(state: BattleState): { xp: number; gold: number } {
+  const rng = rngOf(state)
+  let xp = 0
+  let gold = 0
+  for (const u of Object.values(state.units)) {
+    if (u.side !== 'enemy' || u.origin.type !== 'opponent') continue
+    xp += buildOpponent(u.origin.spec).xpValue
+    const drop = CREATURES[u.origin.spec.baseId]?.goldDrop
+    if (drop) gold += Math.max(0, rng.roll(drop.dice).reduce((a, b) => a + b, 0) + drop.mod)
+  }
+  return { xp: Math.round(xp), gold }
+}
+
 function checkEnd(state: BattleState, out: GameEvent[]): boolean {
   const alive = (side: Side) => livingUnits(state).some(u => u.side === side)
-  if (!alive('enemy')) setPhase(state, 'victory', out)
-  else if (!alive('player')) setPhase(state, 'defeat', out)
+  if (!alive('enemy')) {
+    state.rewards ??= victoryRewards(state)
+    setPhase(state, 'victory', out)
+  } else if (!alive('player')) setPhase(state, 'defeat', out)
   else return false
   state.pending = undefined
   state.activeUnit = undefined

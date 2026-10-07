@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Biome } from '#shared/types'
-import { BIOMES, TERRAIN, generateMap, spawnsConnected } from '#shared/engine/mapgen'
+import { BIOMES, TERRAIN, biomeFor, generateMap, spawnsConnected } from '#shared/engine/mapgen'
 
 const params = { seed: 1234, biome: 'forest' as Biome, width: 15, height: 11 }
 
@@ -31,6 +31,12 @@ describe('generateMap', () => {
         expect(spawnsConnected(map.hexes, map.spawns)).toBe(true)
       }
     }
+  })
+
+  it('picks every biome across seeds, the same one for the same seed', () => {
+    const seen = new Set(Array.from({ length: 40 }, (_, seed) => biomeFor(seed)))
+    expect([...seen].sort()).toEqual(Object.keys(BIOMES).sort())
+    expect(biomeFor(12345)).toBe(biomeFor(12345))
   })
 
   it('roughly matches biome density', () => {

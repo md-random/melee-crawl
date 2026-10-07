@@ -9,7 +9,7 @@ import {
   arcOf, attackTargets, hasDisengaged, isEngagedAt, mapOf, movementOptions, readyAttack, toHitTarget
 } from '#shared/engine/combat'
 import { applyEffect, tickEffects } from '#shared/engine/effects'
-import { alignByGenus } from '#shared/engine/opponents'
+import { alignByGenus, buildOpponent } from '#shared/engine/opponents'
 import { addTalent, createCharacter } from '#shared/engine/rules'
 import { hexDistance, hexKey, neighbor, offsetToHex } from '#shared/utils/hex'
 
@@ -360,5 +360,38 @@ describe('turn engine', () => {
     const state = createBattle({ id: 'b', battleNo: 1, seed: 11, character: hero(), opponents: [orc], biome: 'plains' })
     advance(state)
     expect(() => submit(state, { kind: 'action', choice: 'attack' })).toThrow()
+  })
+})
+
+describe('rewards', () => {
+  const second = { ...orc, seed: 8 }
+
+  /** A battle whose opponents are already dead, run to its result. */
+  function won(seed: number): BattleState {
+    const state = createBattle({ id: 'b', battleNo: 1, seed, character: hero(), opponents: [orc, second], biome: 'plains' })
+    for (const u of Object.values(state.units)) if (u.side === 'enemy') u.stCurrent = 0
+    advance(state)
+    return state
+  }
+
+  it('gives the opponents\' XP values and their gold dice on victory', () => {
+    const state = won(3)
+    expect(state.phase).toBe('victory')
+    expect(state.rewards!.xp).toBe(buildOpponent(orc).xpValue + buildOpponent(second).xpValue)
+    // Orcs drop 2d gold each.
+    expect(state.rewards!.gold).toBeGreaterThanOrEqual(4)
+    expect(state.rewards!.gold).toBeLessThanOrEqual(24)
+  })
+
+  it('rolls the same gold on replay', () => {
+    expect(won(3).rewards).toEqual(won(3).rewards)
+  })
+
+  it('gives nothing on defeat', () => {
+    const state = createBattle({ id: 'b', battleNo: 1, seed: 3, character: hero(), opponents: [orc], biome: 'plains' })
+    unitsOf(state).me.stCurrent = 0
+    advance(state)
+    expect(state.phase).toBe('defeat')
+    expect(state.rewards).toBeUndefined()
   })
 })
