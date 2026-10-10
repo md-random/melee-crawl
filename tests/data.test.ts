@@ -16,7 +16,12 @@ describe('data integrity', () => {
   it('talent ids match keys and every reference exists', () => {
     for (const [key, t] of Object.entries(TALENTS)) {
       expect(t.id).toBe(key)
-      const refs = [...talentRefs(t.requires), ...Object.values(t.rankRequires ?? {}).flatMap(talentRefs), ...(t.costOverrides ?? []).map(o => o.ifHasTalent)]
+      const refs = [
+        ...talentRefs(t.requires),
+        ...Object.values(t.rankRequires ?? {}).flatMap(talentRefs),
+        ...(t.costOverrides ?? []).map(o => o.ifHasTalent),
+        ...(t.weaponPrereq ? [t.weaponPrereq] : [])
+      ]
       for (const r of refs) expect(TALENTS[r], `${key} → ${r}`).toBeDefined()
     }
   })

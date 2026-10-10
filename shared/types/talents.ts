@@ -35,6 +35,7 @@ export interface TalentNode {
   costOverrides?: { ifHasTalent: Id; iqCost: number }[]
   maxRanks: number             // Missile Weapons = 3, Toughness = 2
   perWeapon?: boolean          // Weapon Expertise / Mastery: one per weapon talent
+  weaponPrereq?: Id
 
   /** Passive effects applied per rank (permanent modifiers, granted actions). */
   effects: EffectDef[]

@@ -67,6 +67,9 @@ export const canTakeTalent = (node: TalentNode, ctx: TakeContext, weaponTalent?:
   if (node.perWeapon) {
     if (!weaponTalent) reasons.push('Choose a weapon talent')
     else if (!hasTalent(ctx.owned, weaponTalent)) reasons.push(`Needs ${TALENTS[weaponTalent]?.name ?? weaponTalent}`)
+    else if (node.weaponPrereq && rankOf(ctx.owned, node.weaponPrereq, weaponTalent) === 0) {
+      reasons.push(`Needs ${TALENTS[node.weaponPrereq]?.name ?? node.weaponPrereq} (${TALENTS[weaponTalent]?.name ?? weaponTalent})`)
+    }
   }
   const nextRank = rankOf(ctx.owned, node.id, weaponTalent) + 1
   if (nextRank > node.maxRanks) reasons.push('Already at max rank')

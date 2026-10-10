@@ -57,6 +57,29 @@ describe('talents', () => {
     expect(canTakeTalent(TALENTS.weaponExpertise!, hero([], smart), 'sword').ok).toBe(false)
     expect(canTakeTalent(TALENTS.weaponExpertise!, hero(addTalent([], 'sword'), smart), 'sword').ok).toBe(true)
   })
+
+  it('Weapon Mastery needs Weapon Expertise for the same weapon', () => {
+    const ace = { ST: 12, DX: 14, IQ: 30 }
+    const sword = addTalent(addTalent([], 'sword'), 'axMace')
+    const expert = addTalent(sword, 'weaponExpertise', 'axMace')
+    expect(canTakeTalent(TALENTS.weaponMastery!, hero(expert, ace), 'sword').reasons).toContain('Needs Weapon Expertise (Sword)')
+    expect(canTakeTalent(TALENTS.weaponMastery!, hero(addTalent(expert, 'weaponExpertise', 'sword'), ace), 'sword').ok).toBe(true)
+  })
+
+  it('Missile Weapons can be taken three times', () => {
+    const smart = { ST: 12, DX: 12, IQ: 12 }
+    const twice = addTalent(addTalent([], 'missileWeapons'), 'missileWeapons')
+    expect(canTakeTalent(TALENTS.missileWeapons!, hero(twice, smart)).ok).toBe(true)
+    expect(canTakeTalent(TALENTS.missileWeapons!, hero(addTalent(twice, 'missileWeapons'), smart)).reasons).toContain('Already at max rank')
+  })
+
+  it('Unarmed Combat steps need the one before plus DX and ST', () => {
+    const strong = { ST: 12, DX: 14, IQ: 30 }
+    const four = ['unarmed1', 'unarmed2', 'unarmed3', 'unarmed4'].reduce((o, id) => addTalent(o, id), [] as ReturnType<typeof addTalent>)
+    expect(canTakeTalent(TALENTS.unarmed5!, hero(four, strong)).ok).toBe(true)
+    expect(canTakeTalent(TALENTS.unarmed5!, hero(four, { ...strong, ST: 11 })).reasons).toContain('Needs ST 12 (have 11)')
+    expect(canTakeTalent(TALENTS.unarmed3!, hero(addTalent([], 'unarmed1'), strong)).reasons).toContain('Needs Unarmed Combat II')
+  })
 })
 
 describe('adjusted DX', () => {
