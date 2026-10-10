@@ -29,6 +29,8 @@ export interface SaveFile {
     character: Character
     nextEncounter?: Encounter
     battle?: BattleState
+    /** This camp visit's shop; cleared on leaving camp. */
+    shop?: { stock: Id[] }
   }
   graveyard: Tombstone[]
   settings: { animationSpeed: number; logLimit: number }

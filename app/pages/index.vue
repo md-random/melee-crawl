@@ -17,7 +17,9 @@ import { useGameStore } from '~/stores/game'
 // Battle screen: shows the engine's state and sends the player's choices to it.
 
 const game = useGameStore()
+const inCamp = game.screen === 'camp'
 if (!game.character) await navigateTo('/create')
+else if (inCamp) await navigateTo('/camp')
 
 const events = ref<GameEvent[]>([])
 function record(list: GameEvent[]) {
@@ -25,7 +27,7 @@ function record(list: GameEvent[]) {
   const limit = game.save.settings.logLimit
   if (events.value.length > limit) events.value.splice(0, events.value.length - limit)
 }
-if (game.character && !game.battle) record(game.startBattle())
+if (game.character && !game.battle && !inCamp) record(game.startBattle())
 
 const battle = computed(() => game.battle)
 const map = computed(() => (battle.value ? mapOf(battle.value) : undefined))
@@ -163,10 +165,9 @@ const killerName = computed(() => {
 
 // ---------- end of battle ----------
 
-function nextBattle() {
+function toCamp() {
   game.finishVictory()
-  events.value = []
-  record(game.startBattle())
+  navigateTo('/camp')
 }
 
 function toGraveyard() {
@@ -270,7 +271,7 @@ function abandon() {
         <ResolutionPanel :battle="battle" :events="events">
           <div v-if="battle.phase === 'victory'" class="banner win">
             <span>Victory!<template v-if="battle.rewards"> +{{ battle.rewards.xp }} XP · +{{ battle.rewards.gold }} gold</template></span>
-            <button @click="nextBattle">Next battle</button>
+            <button @click="toCamp">To camp</button>
           </div>
           <div v-else-if="battle.phase === 'defeat'" class="banner lose">
             {{ hero.name }} has fallen, killed by {{ killerName }}.

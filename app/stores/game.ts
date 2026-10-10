@@ -1,17 +1,28 @@
 import { defineStore } from 'pinia'
 import { toRaw } from 'vue'
-import type { Character, GameEvent, SaveFile, Tombstone } from '#shared/types'
+import type { Attributes, Character, GameEvent, OwnedTalent, SaveFile, Tombstone } from '#shared/types'
 import { SCHEMA_VERSION } from '#shared/types'
+import { ITEMS } from '#shared/data/items'
+import { PROGRESSION } from '#shared/data/progression'
 import { TALENTS } from '#shared/data/talents'
 import { advance, createBattle, submit, type PlayerInput } from '#shared/engine/battle'
 import { isAlive } from '#shared/engine/combat'
 import { biomeFor } from '#shared/engine/mapgen'
 import { randomSpec } from '#shared/engine/opponents'
 import { loadSave } from '#shared/engine/save'
-import { levelOf } from '#shared/engine/rules'
+import { applyShop, shopStock, type ShopAction } from '#shared/engine/shop'
+import { attrTotalFor, iqUsed, levelOf, loadoutOf, loadoutProblems, newTalentRanks, rankOf } from '#shared/engine/rules'
 import { randomSeed } from '#shared/utils/rng'
 
 const KEY = 'meleecrawl.save'
+
+/** Temporary, for testing: each new battle has one opponent at 1 ST. Set false to undo. */
+const TEST_WEAK_OPPONENT = true
+
+/** Temporary, for testing: extra attribute points at camp, on top of the XP table. Set 0 to undo. */
+export const TEST_BONUS_ATTR_POINTS = 10
+
+const TEST_EXTRA_WEAPONS = true
 
 function emptySave(): SaveFile {
   return { schemaVersion: SCHEMA_VERSION, graveyard: [], settings: { animationSpeed: 1, logLimit: 2000 } }
@@ -43,7 +54,9 @@ export const useGameStore = defineStore('game', {
   state: (): { save: SaveFile } => ({ save: readSave() }),
   getters: {
     character: (s): Character | undefined => s.save.run?.character,
-    battle: s => s.save.run?.battle
+    battle: s => s.save.run?.battle,
+    screen: s => s.save.run?.screen,
+    shop: s => s.save.run?.shop
   },
   actions: {
     startRun(character: Character) {
@@ -57,7 +70,9 @@ export const useGameStore = defineStore('game', {
       if (!run || run.battle) return []
       const seed = randomSeed()
       // Placeholder opponents until matchmaking (step 7).
-      const opponents = [0, 1].map(i => randomSpec(seed + i + 1, { attrPoints: i * 2, xp: i * 500 }))
+      const opponents = TEST_WEAK_OPPONENT
+        ? [randomSpec(seed + 1, { attrPoints: 0, xp: 0 })]
+        : [0, 1].map(i => randomSpec(seed + i + 1, { attrPoints: i * 2, xp: i * 500 }))
       const battle = createBattle({
         id: `battle-${seed}`,
         battleNo: run.character.stats.battlesWon + 1,
@@ -66,6 +81,7 @@ export const useGameStore = defineStore('game', {
         opponents,
         biome: biomeFor(seed)
       })
+      if (TEST_WEAK_OPPONENT) for (const u of Object.values(battle.units)) if (u.side === 'enemy') u.stCurrent = 1
       const events = advance(battle)
       run.battle = battle
       run.screen = 'battle'
@@ -88,7 +104,7 @@ export const useGameStore = defineStore('game', {
     },
 
     /**
-     * After a win: add the rewards, count it and clear the battle.
+     * After a win: add the rewards, count it, clear the battle and go to camp.
      * Healing is automatic, since the next battle starts from full ST.
      */
     finishVictory() {
@@ -107,6 +123,68 @@ export const useGameStore = defineStore('game', {
       stats.kills += Object.values(battle.units).filter(u => u.side === 'enemy' && !isAlive(u)).length
       stats.turnsSurvived += battle.round
       delete run.battle
+      run.screen = 'camp'
+      writeSave(this.save)
+    },
+
+    /** Saves attributes placed at camp: only raises, and only up to what the XP table allows. */
+    setAttributes(attrs: Attributes) {
+      const c = this.save.run?.character
+      if (!c || this.save.run?.screen !== 'camp') return
+      if ((['ST', 'DX', 'IQ'] as const).some(k => attrs[k] < c.base[k])) return
+      if (attrs.ST + attrs.DX + attrs.IQ > attrTotalFor(c.xp.earned) + TEST_BONUS_ATTR_POINTS) return
+      c.base = { ...attrs }
+      writeSave(this.save)
+    },
+
+    /** Saves talents learned at camp: keeps every saved one, pays XP per new rank, stays within IQ. */
+    setTalents(talents: OwnedTalent[]) {
+      const c = this.save.run?.character
+      if (!c || this.save.run?.screen !== 'camp') return
+      if (c.talents.some(t => rankOf(talents, t.id, t.weaponTalent) < t.rank)) return
+      const cost = newTalentRanks(c.talents, talents) * PROGRESSION.talentXpCost
+      if (cost > c.xp.unspent || iqUsed(talents, c.class) > c.base.IQ) return
+      c.talents = talents.map(t => ({ ...t }))
+      c.xp.unspent -= cost
+      writeSave(this.save)
+    },
+
+    /** Stocks this camp visit's shop, once. */
+    openShop() {
+      const run = this.save.run
+      if (!run || run.screen !== 'camp') return
+      const weaponCount = TEST_EXTRA_WEAPONS ? 4 : 2
+      if (run.shop && run.shop.stock.filter(id => ITEMS[id]?.kind === 'weapon').length >= weaponCount) return
+      run.shop = { stock: shopStock(randomSeed(), { weapon: weaponCount }) }
+      writeSave(this.save)
+    },
+
+    /** Saves the camp's buys and sells, if they all go through and leave a usable loadout. */
+    applyShop(actions: ShopAction[]) {
+      const run = this.save.run
+      const c = run?.character
+      if (!run?.shop || !c || run.screen !== 'camp' || !actions.length) return
+      const { state, error } = applyShop(
+        { inventory: c.inventory, equipped: c.equipped, gold: c.gold, stock: run.shop.stock },
+        actions,
+        () => crypto.randomUUID()
+      )
+      if (error) return
+      const gear = loadoutOf(state)
+      if (!gear.weapon || loadoutProblems(c.base, gear, c.talents).length) return
+      c.inventory = state.inventory
+      c.equipped = state.equipped
+      c.gold = state.gold
+      run.shop.stock = state.stock
+      writeSave(this.save)
+    },
+
+    /** Leaves camp for the next fight; the battle page starts it. The next camp gets a new shop. */
+    leaveCamp() {
+      const run = this.save.run
+      if (run?.screen !== 'camp') return
+      run.screen = 'battle'
+      delete run.shop
       writeSave(this.save)
     },
 

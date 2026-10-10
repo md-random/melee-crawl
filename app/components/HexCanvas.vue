@@ -293,7 +293,7 @@ function renderTerrainLayer(dpr: number) {
 
   if (props.showCoords && hexSize > 14) {
     ctx.fillStyle = COLORS.coords
-    ctx.font = `${Math.round(hexSize * 0.28)}px system-ui, sans-serif`
+    ctx.font = `${Math.round(hexSize * 0.28)}px Ubuntu, system-ui, sans-serif`
     ctx.textAlign = 'center'
     for (const key of props.map.hexes.keys()) {
       const c = center(key)
@@ -371,7 +371,7 @@ function drawToken(ctx: CanvasRenderingContext2D, unit: UnitToken) {
   ctx.stroke()
 
   ctx.fillStyle = COLORS.tokenText
-  ctx.font = `600 ${Math.round(s * 0.5)}px system-ui, sans-serif`
+  ctx.font = `600 ${Math.round(s * 0.5)}px Ubuntu, system-ui, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(unit.name.charAt(0).toUpperCase(), c.x, c.y + s * 0.02)

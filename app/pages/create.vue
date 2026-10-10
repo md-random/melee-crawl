@@ -2,7 +2,7 @@
 import type { AttrKey, Attributes, OwnedTalent } from '#shared/types'
 import { ITEMS, armors, shields, weapons } from '#shared/data/items'
 import { BASE_MA, PROGRESSION } from '#shared/data/progression'
-import { adjustedDx, attrPointsLeft, createCharacter, creationProblems, hasTalent, movementAllowance } from '#shared/engine/rules'
+import { adjustedDx, attrPointsLeft, createCharacter, creationProblems, movementAllowance } from '#shared/engine/rules'
 import { useTalents } from '~/composables/useTalents'
 import { useGameStore } from '~/stores/game'
 
@@ -18,13 +18,8 @@ const shieldId = ref('')
 
 const EXTRA_POINTS = PROGRESSION.startingAttrPoints - 3 * PROGRESSION.minAttr
 const pointsLeft = computed(() => attrPointsLeft(attrs.value))
-
-function bump(key: AttrKey, by: 1 | -1) {
-  const next = attrs.value[key] + by
-  if (next < PROGRESSION.minAttr || (by > 0 && pointsLeft.value <= 0)) return
-  // TalentPicker prunes talents that no longer qualify and emits the new list.
-  attrs.value = { ...attrs.value, [key]: next }
-}
+// Lowering an attribute: TalentPicker prunes talents that no longer qualify and emits the new list.
+const MIN_ATTRS: Attributes = { ST: PROGRESSION.minAttr, DX: PROGRESSION.minAttr, IQ: PROGRESSION.minAttr }
 
 const attrText = computed<Record<AttrKey, string>>(() => {
   const strongest = weapons().filter(w => w.minST <= attrs.value.ST).sort((a, b) => b.minST - a.minST)[0]
@@ -58,67 +53,13 @@ const gear = computed(() => {
   }
 })
 
-const knowsTwoWeapons = computed(() => hasTalent(talents.value, 'twoWeapons'))
-const offWeaponOff = computed(() => gear.value.weapon?.hands === 2)
-const shieldOff = computed(() => gear.value.weapon?.hands === 2 || !!gear.value.offWeapon)
+/** Every item in the game, by id: hero creation picks from all of them. */
+const WEAPON_OPTIONS = weapons().map(def => ({ value: def.id, def }))
+const ARMOR_OPTIONS = armors().map(def => ({ value: def.id, def }))
+const SHIELD_OPTIONS = shields().map(def => ({ value: def.id, def }))
 
-watch(() => gear.value.weapon?.hands, (hands) => {
-  if (hands === 2) {
-    shieldId.value = ''
-    offWeaponId.value = ''
-  }
-})
-watch(knowsTwoWeapons, (knows) => {
-  if (!knows) offWeaponId.value = ''
-})
-watch(offWeaponId, (id) => {
-  if (id) shieldId.value = ''
-})
-
-/** Why a one-handed weapon can't be the second weapon, or '' if it can. */
-function offWeaponBlock(w: { minST: number; talent: string }): string {
-  if (attrs.value.ST < w.minST) return 'too heavy'
-  if (!hasTalent(talents.value, w.talent)) return 'no talent'
-  return ''
-}
-
-const dmg = (d: { dice: number; mod: number }) => `${d.dice}d${d.mod ? (d.mod > 0 ? `+${d.mod}` : d.mod) : ''}`
-
-// Same talent logic as the picker, for the equipment notes and IQ line.
-const { iqSpent, talentNote } = useTalents({ attrs, owned: talents, cls: 'hero', attrPoints: pointsLeft })
-
-const weaponText = computed(() => {
-  const w = gear.value.weapon
-  if (!w) return []
-  const lines = [`${w.name}: ${dmg(w.damage)} damage, ${w.hands === 2 ? 'two hands' : 'one hand'}${w.range ? `, range ${w.range}` : ''}. Needs ST ${w.minST}.`]
-  if (attrs.value.ST < w.minST) lines.push(`Your ST is ${attrs.value.ST}: raise ST by ${w.minST - attrs.value.ST} or pick a lighter weapon.`)
-  lines.push(talentNote(w.talent, 'it'))
-  return lines
-})
-
-const offWeaponText = computed(() => {
-  const w = gear.value.offWeapon
-  if (gear.value.weapon?.hands === 2) return ['Your weapon needs both hands, so no second weapon.']
-  if (!w) return ['No second weapon.']
-  return [`${w.name}: ${dmg(w.damage)} damage, one hand. Needs ST ${w.minST}.`]
-})
-
-const armorText = computed(() => {
-  const a = gear.value.armor
-  if (!a) return [`No armor: every hit does full damage, but you move the full ${BASE_MA} hexes.`]
-  return [`${a.name} stops ${a.hitsStopped} damage from every hit, costs ${a.dxPenalty} DX and limits movement to ${a.maxMA} hexes.`]
-})
-
-const shieldText = computed(() => {
-  const s = gear.value.shield
-  if (gear.value.weapon?.hands === 2) return ['Your weapon needs both hands, so no shield.']
-  if (gear.value.offWeapon) return ['You hold a second weapon, so no shield.']
-  if (!s) return ['No shield.']
-  return [
-    `${s.name} stops ${s.hitsStopped} more damage from every hit${s.dxPenalty ? ` and costs ${s.dxPenalty} DX` : ''}.`,
-    talentNote('shield', 'a shield')
-  ]
-})
+// Same talent logic as the picker, for the IQ line.
+const { iqSpent } = useTalents({ attrs, owned: talents, cls: 'hero', attrPoints: pointsLeft })
 
 const adj = computed(() => adjustedDx(attrs.value, talents.value, gear.value))
 const ma = computed(() => movementAllowance(BASE_MA, gear.value))
@@ -172,62 +113,22 @@ function start() {
 
         <h2>Attributes</h2>
         <p class="note">{{ pointsText }}</p>
-        <div v-for="key in (['ST', 'DX', 'IQ'] as const)" :key="key" class="attr">
-          <div class="attr-row">
-            <strong>{{ key }}</strong>
-            <button :disabled="attrs[key] <= PROGRESSION.minAttr" @click="bump(key, -1)">−</button>
-            <span class="val">{{ attrs[key] }}</span>
-            <button :disabled="pointsLeft <= 0" @click="bump(key, 1)">+</button>
-          </div>
-          <p class="note">{{ attrText[key] }}</p>
-        </div>
+        <AttributeEditor v-model="attrs" :min="MIN_ATTRS" :total="PROGRESSION.startingAttrPoints" :notes="attrText" />
 
         <h2>Equipment</h2>
-        <label class="field">
-          Weapon
-          <select v-model="weaponId">
-            <option v-for="w in weapons()" :key="w.id" :value="w.id" :disabled="attrs.ST < w.minST">
-              {{ w.name }} · {{ dmg(w.damage) }} · ST {{ w.minST }}{{ attrs.ST < w.minST ? ' (too heavy)' : '' }}
-            </option>
-          </select>
-        </label>
-        <p v-for="l in weaponText" :key="l" class="note">{{ l }}</p>
-
-        <template v-if="knowsTwoWeapons">
-          <label :class="['field', { off: offWeaponOff }]">
-            Second weapon
-            <select v-model="offWeaponId" :disabled="offWeaponOff">
-              <option value="">None</option>
-              <option
-                v-for="w in weapons().filter(w => w.hands === 1)"
-                :key="w.id"
-                :value="w.id"
-                :disabled="!!offWeaponBlock(w)"
-              >
-                {{ w.name }} · {{ dmg(w.damage) }} · ST {{ w.minST }}{{ offWeaponBlock(w) ? ` (${offWeaponBlock(w)})` : '' }}
-              </option>
-            </select>
-          </label>
-          <p v-for="l in offWeaponText" :key="l" :class="['note', { blocked: offWeaponOff }]">{{ l }}</p>
-        </template>
-
-        <label class="field">
-          Armor
-          <select v-model="armorId">
-            <option value="">None</option>
-            <option v-for="a in armors()" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </select>
-        </label>
-        <p v-for="l in armorText" :key="l" class="note">{{ l }}</p>
-
-        <label :class="['field', { off: shieldOff }]">
-          Shield
-          <select v-model="shieldId" :disabled="shieldOff">
-            <option value="">None</option>
-            <option v-for="s in shields()" :key="s.id" :value="s.id">{{ s.name }}</option>
-          </select>
-        </label>
-        <p v-for="l in shieldText" :key="l" :class="['note', { blocked: shieldOff }]">{{ l }}</p>
+        <GearPicker
+          v-model:weapon="weaponId"
+          v-model:offWeapon="offWeaponId"
+          v-model:armor="armorId"
+          v-model:shield="shieldId"
+          :weapons="WEAPON_OPTIONS"
+          :armors="ARMOR_OPTIONS"
+          :shields="SHIELD_OPTIONS"
+          :attrs="attrs"
+          :talents="talents"
+          cls="hero"
+          :attr-points="pointsLeft"
+        />
 
         <h2>Your hero</h2>
         <p v-for="l in summaryText" :key="l" class="note strong">{{ l }}</p>
@@ -302,45 +203,6 @@ h2:first-child {
 
 .name {
   width: 100%;
-}
-
-.attr {
-  margin-bottom: 8px;
-}
-
-.attr-row {
-  display: grid;
-  grid-template-columns: 28px 32px 32px 32px;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-
-.val {
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.field {
-  display: grid;
-  gap: 4px;
-  margin: 10px 0 4px;
-  font-size: 0.9rem;
-}
-
-.field.off {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
-.field.off select {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.note.blocked {
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .problems {

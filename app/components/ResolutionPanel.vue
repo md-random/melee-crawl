@@ -168,7 +168,7 @@ function partsText(r?: Roll): string {
   margin: 0;
   padding: 6px 10px;
   list-style: none;
-  font-family: ui-monospace, monospace;
+  font-family: 'Ubuntu Mono', ui-monospace, monospace;
   font-size: 0.8rem;
 }
 

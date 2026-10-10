@@ -120,6 +120,6 @@ export interface BattleState {
   /** Counters for event order and effect uids; saved so reloads continue them. */
   seq: { event: number; uid: number }
   killedBy?: { unitUid: Id; name: string; talents: Id[] }
-  /** Set once when the battle is won; added to the character on "Next battle". */
+  /** Set once when the battle is won; added to the character on "To camp". */
   rewards?: { xp: number; gold: number }
 }

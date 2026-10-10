@@ -20,7 +20,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: system-ui, sans-serif;
+  font-family: 'Ubuntu', system-ui, sans-serif;
 }
 
 button,

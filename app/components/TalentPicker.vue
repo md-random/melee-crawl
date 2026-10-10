@@ -10,6 +10,8 @@ const props = defineProps<{
   locked?: OwnedTalent[]
   /** Attribute points left to spend. */
   attrPoints?: number
+  /** XP left to spend (camp). When set, each new talent also costs XP. */
+  xp?: number
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [talents: OwnedTalent[]] }>()
@@ -19,12 +21,16 @@ const { branches, iqSpent, iqLeft, toggle, prune } = useTalents({
   owned: () => props.modelValue,
   cls: () => props.cls,
   locked: () => props.locked,
-  attrPoints: () => props.attrPoints
+  attrPoints: () => props.attrPoints,
+  xp: () => props.xp
 })
 
 function onClick(row: TalentRow) {
   emit('update:modelValue', toggle(row))
 }
+
+/** A saved talent with nothing left to do is sunk in; everything else keeps its state's look. */
+const look = (row: TalentRow) => (row.permanent && !row.canAdd ? 'permanent' : row.state)
 
 // Lowering an attribute can disqualify talents; send the pruned list up.
 watch(() => props.attrs, () => {
@@ -39,19 +45,23 @@ watch(() => props.attrs, () => {
   <div>
     <div class="head">
       <div>
-        <h2>Talents</h2>
+        <h2 class="pill-label">Talents</h2>
         <p class="note">
           Talents are skills. Each costs IQ.
-          Green = learned, gold outline = can learn now, faded = not yet.
+          Green = learned, gold = can learn now, faded = not yet.<template v-if="locked?.length"> Sunk in = permanent.</template>
         </p>
       </div>
-      <span class="iq">IQ {{ attrs.IQ }} · Spent {{ iqSpent }} · Left {{ iqLeft }}</span>
+      <div class="iq">
+        <span class="iq-badge"><strong>{{ attrs.IQ }}</strong><small>IQ</small></span>
+        <span class="iq-badge"><strong>{{ iqSpent }}</strong><small>Spent</small></span>
+        <span class="iq-badge"><strong>{{ iqLeft }}</strong><small>Left</small></span>
+      </div>
     </div>
     <div class="branches">
       <div v-for="b in branches" :key="b.name" class="branch">
         <h3>{{ b.name }}</h3>
         <template v-for="row in b.rows" :key="row.key">
-          <div v-if="row.weapons" :class="['talent', row.state]">
+          <div v-if="row.weapons" :class="['talent', 'group', row.state]">
             <span class="icon">{{ row.node.icon }}</span>
             <span class="tname">{{ row.label }}</span>
             <span class="desc">{{ row.node.description }}</span>
@@ -68,7 +78,7 @@ watch(() => props.attrs, () => {
             </span>
             <span v-for="l in row.lines" :key="l" class="why">{{ l }}</span>
           </div>
-          <button v-else :class="['talent', row.state]" @click="onClick(row)">
+          <button v-else :class="['talent', look(row)]" @click="onClick(row)">
             <span class="icon">{{ row.node.icon }}</span>
             <span class="tname">{{ row.label }}</span>
             <span class="desc">{{ row.node.description }}</span>
@@ -97,10 +107,51 @@ h2 {
   margin: 0 0 6px;
 }
 
+/* Neumorphic, like the camp's top box: raised = can be pressed, sunk in = only shows something. */
+
+/* Recessed label pill in muted gold, matching ATTRIBUTES at camp. */
+.pill-label {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
+}
+
+/* IQ total, spent and left as recessed badges ringed in IQ blue. */
 .iq {
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.iq-badge {
+  display: grid;
+  justify-items: center;
+  min-width: 58px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px rgba(90, 158, 240, 0.6);
+  line-height: 1.1;
+}
+
+.iq-badge strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.iq-badge small {
+  font-size: 0.62rem;
+  color: #5a9ef0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 h3 {
@@ -127,17 +178,87 @@ h3 {
   align-content: start;
 }
 
+/*
+ * Tiles by state, each ringed in its color (--ring):
+ * can learn now = raised, gold · learned = raised, green (can still be clicked) ·
+ * permanent = sunk in, green · not yet = flat and faded.
+ * Per-weapon tiles aren't pressed themselves (their weapon buttons are), so they're sunk in.
+ */
 .talent {
+  --ring: var(--border);
   display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 2px 8px;
+  grid-template-columns: 28px 1fr;
+  gap: 2px 10px;
   text-align: left;
   align-items: start;
   font-size: 0.85rem;
-  padding: 6px 8px;
+  padding: 8px 10px;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: none;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--ring);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.talent.available {
+  --ring: color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.talent.owned,
+.talent.permanent {
+  --ring: rgba(127, 166, 78, 0.8);
+  background: color-mix(in srgb, #7fa64e 8%, var(--panel));
+}
+
+button.talent.available,
+button.talent.owned {
+  box-shadow:
+    4px 4px 9px rgba(0, 0, 0, 0.55),
+    -3px -3px 8px rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1.5px var(--ring);
+}
+
+button.talent.available:hover,
+button.talent.owned:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    6px 6px 14px rgba(0, 0, 0, 0.6),
+    -4px -4px 11px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1.5px var(--ring);
+}
+
+button.talent.available:active,
+button.talent.owned:active {
+  transform: none;
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.6),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px var(--ring);
+}
+
+.talent.permanent,
+.talent.group {
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px var(--ring);
+}
+
+button.talent.permanent,
+button.talent.locked {
+  cursor: default;
+}
+
+/* Icon in a flat circle ringed in the tile's color, like the camp badges. */
+.icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ring) 30%, var(--panel)), var(--panel) 75%);
+  box-shadow: inset 0 0 0 2px var(--ring);
+  font-size: 0.95rem;
 }
 
 .weapons {
@@ -186,17 +307,9 @@ h3 {
   color: var(--muted);
 }
 
-.talent.owned {
-  background: #3a5226;
-  border-color: #7fa64e;
-}
-
-.talent.owned .why {
+.talent.owned .why,
+.talent.permanent .why {
   color: #cfe3b5;
-}
-
-.talent.available {
-  border-color: var(--accent);
 }
 
 .talent.available .why {
@@ -204,6 +317,6 @@ h3 {
 }
 
 .talent.locked {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 </style>

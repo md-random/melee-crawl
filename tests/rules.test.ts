@@ -3,8 +3,8 @@ import type { Attributes } from '#shared/types'
 import { ITEMS } from '#shared/data/items'
 import { TALENTS } from '#shared/data/talents'
 import {
-  addTalent, adjustedDx, attrPointsLeft, canTakeTalent, createCharacter, creationProblems,
-  dependentsOf, hasTalent, iqUsed, loadoutOf, removeTalent
+  addTalent, adjustedDx, attrPointsLeft, attrTotalFor, canTakeTalent, createCharacter, creationProblems,
+  dependentsOf, hasTalent, iqUsed, loadoutOf, newTalentRanks, nextAttrStep, removeTalent
 } from '#shared/engine/rules'
 
 const attrs: Attributes = { ST: 12, DX: 12, IQ: 8 }
@@ -40,6 +40,18 @@ describe('talents', () => {
     expect(dependentsOf(owned, 'shield', undefined, smart).map(t => t.id)).toEqual(['shieldExpertise'])
   })
 
+  it('at camp, a new talent also needs 500 XP unspent', () => {
+    expect(canTakeTalent(TALENTS.running!, { ...hero(), xp: 499 }).reasons).toContain('Costs 500 XP (499 left)')
+    expect(canTakeTalent(TALENTS.running!, { ...hero(), xp: 500 }).ok).toBe(true)
+    expect(canTakeTalent(TALENTS.running!, hero()).ok).toBe(true) // no XP check outside camp
+  })
+
+  it('counts only the ranks added since the last save', () => {
+    const before = addTalent([], 'sword')
+    expect(newTalentRanks(before, before)).toBe(0)
+    expect(newTalentRanks(before, addTalent(addTalent(before, 'running'), 'weaponExpertise', 'sword'))).toBe(2)
+  })
+
   it('per-weapon talents need the weapon talent', () => {
     const smart = { ST: 12, DX: 12, IQ: 12 }
     expect(canTakeTalent(TALENTS.weaponExpertise!, hero([], smart), 'sword').ok).toBe(false)
@@ -56,6 +68,22 @@ describe('adjusted DX', () => {
     const untrained = adjustedDx(attrs, [], { weapon, armor })
     expect(untrained.value).toBe(6)
     expect(untrained.parts.map(p => p.label)).toEqual(['DX', 'Leather Armor', 'No Sword talent'])
+  })
+})
+
+describe('attribute points from XP', () => {
+  it('follows the XP table', () => {
+    expect(attrTotalFor(0)).toBe(32)
+    expect(attrTotalFor(399)).toBe(32)
+    expect(attrTotalFor(400)).toBe(35)
+    expect(attrTotalFor(700)).toBe(36)
+    expect(attrTotalFor(100000)).toBe(41)
+  })
+
+  it('names the next step, none past the end of the table', () => {
+    expect(nextAttrStep(70)).toEqual({ totalXp: 400, attrTotal: 35 })
+    expect(nextAttrStep(400)).toEqual({ totalXp: 700, attrTotal: 36 })
+    expect(nextAttrStep(100000)).toBeUndefined()
   })
 })
 

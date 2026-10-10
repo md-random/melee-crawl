@@ -55,6 +55,8 @@ export interface TakeContext {
   audience: 'hero' | 'creature'
   /** Creatures don't spend IQ on talents. */
   checkIq?: boolean
+  /** XP left to spend (camp). When set, each new rank also costs PROGRESSION.talentXpCost. */
+  xp?: number
 }
 
 /** Whether the next rank of a talent can be taken now, with reasons if not. */
@@ -73,9 +75,17 @@ export function canTakeTalent(node: TalentNode, ctx: TakeContext, weaponTalent?:
     const cost = talentIqCost(node, ctx.owned, ctx.cls)
     if (cost > free) reasons.push(`Costs ${cost} IQ (${free} left)`)
   }
+  if (ctx.xp !== undefined && ctx.xp < PROGRESSION.talentXpCost) {
+    reasons.push(`Costs ${PROGRESSION.talentXpCost} XP (${ctx.xp} left)`)
+  }
   reasons.push(...missingRequirements(node.requires, ctx.attrs, ctx.owned))
   reasons.push(...missingRequirements(node.rankRequires?.[nextRank], ctx.attrs, ctx.owned))
   return { ok: reasons.length === 0, reasons }
+}
+
+/** Ranks in `after` that `before` didn't have: what camp charges XP for. */
+export function newTalentRanks(before: OwnedTalent[], after: OwnedTalent[]): number {
+  return after.reduce((n, t) => n + Math.max(0, t.rank - rankOf(before, t.id, t.weaponTalent)), 0)
 }
 
 /** Talents that would be removed along with this one. */
@@ -240,6 +250,20 @@ export function createCharacter(input: CreationInput, newId: () => Id): Characte
     plannedTalents: [],
     stats: { battlesWon: 0, kills: 0, xpEarned: 0, goldEarned: 0, turnsSurvived: 0 }
   }
+}
+
+// ---------- progression ----------
+
+/** Attribute total (ST + DX + IQ) the XP table allows for this much XP earned. */
+export function attrTotalFor(xpEarned: number): number {
+  let total = PROGRESSION.startingAttrPoints
+  for (const row of PROGRESSION.attrXpTable) if (xpEarned >= row.totalXp) total = row.attrTotal
+  return total
+}
+
+/** The next row of the XP table not yet reached, if any. */
+export function nextAttrStep(xpEarned: number): { totalXp: number; attrTotal: number } | undefined {
+  return PROGRESSION.attrXpTable.find(row => row.totalXp > xpEarned)
 }
 
 /** Level shown in UI and used by matchmaking: attribute points above the starting 32. */

@@ -1,7 +1,7 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type { Attributes, CharacterClass, OwnedTalent, TalentNode } from '#shared/types'
 import { weapons } from '#shared/data/items'
-import { NO_TALENT_DX_PENALTY } from '#shared/data/progression'
+import { NO_TALENT_DX_PENALTY, PROGRESSION } from '#shared/data/progression'
 import { TALENTS, WEAPON_TALENTS } from '#shared/data/talents'
 import {
   addTalent, canTakeTalent, dependentsOf, hasTalent, iqUsed, rankOf, removeTalent, talentIqCost
@@ -18,6 +18,8 @@ export interface TalentRow {
   state: 'owned' | 'available' | 'locked'
   lines: string[]
   canAdd: boolean
+  /** Learned in an earlier camp: can't be forgotten. */
+  permanent: boolean
   /** Per-weapon talents are one tile with a choice for each weapon talent known. */
   weapons?: TalentRow[]
 }
@@ -32,6 +34,8 @@ interface Options {
   locked?: MaybeRefOrGetter<OwnedTalent[] | undefined>
   /** Attribute points left to spend. "Raise IQ" advice shows only when above 0. */
   attrPoints?: MaybeRefOrGetter<number | undefined>
+  /** XP left to spend (camp). When set, each new talent also costs XP. */
+  xp?: MaybeRefOrGetter<number | undefined>
 }
 
 const BRANCH_NAMES: Record<string, string> = {
@@ -65,6 +69,8 @@ export function explainReason(reason: string, canRaiseIQ: boolean): string {
   }
   const iq = reason.match(/^Costs (\d+) IQ \((-?\d+) left\)$/)
   if (iq) return `Costs ${iq[1]} IQ but you only have ${iq[2]} left. ${canRaiseIQ ? 'Raise IQ or forget' : 'Forget'} another talent.`
+  const xp = reason.match(/^Costs (\d+) XP \((-?\d+) left\)$/)
+  if (xp) return `Costs ${xp[1]} XP but you only have ${xp[2]} unspent.`
   if (reason === 'Already at max rank') return 'Fully learned.'
   return reason
 }
@@ -83,8 +89,10 @@ export function useTalents(opts: Options) {
   const iqSpent = computed(() => iqUsed(owned.value, cls.value))
   const iqLeft = computed(() => attrs.value.IQ - iqSpent.value)
 
-  const ctx = () => ({ attrs: attrs.value, owned: owned.value, cls: cls.value, audience: 'hero' as const })
+  const ctx = () => ({ attrs: attrs.value, owned: owned.value, cls: cls.value, audience: 'hero' as const, xp: toValue(opts.xp) })
   const isLocked = (id: string, wt?: string) => locked.value.some(t => t.id === id && t.weaponTalent === wt)
+  /** What one more rank costs: IQ, plus XP at camp. */
+  const price = (iq: number) => (toValue(opts.xp) === undefined ? `${iq} IQ` : `${iq} IQ and ${PROGRESSION.talentXpCost} XP`)
 
   function rowFor(r: { node: TalentNode; weaponTalent?: string; label: string }): TalentRow {
     const { node, weaponTalent } = r
@@ -95,7 +103,7 @@ export function useTalents(opts: Options) {
     const lines: string[] = []
 
     if (rank > 0) {
-      if (canAdd) lines.push(`Learned, rank ${rank} of ${node.maxRanks}. Click to raise to rank ${rank + 1} for ${cost} IQ.`)
+      if (canAdd) lines.push(`Learned, rank ${rank} of ${node.maxRanks}. Click to raise to rank ${rank + 1} for ${price(cost)}.`)
       else if (isLocked(node.id, weaponTalent)) lines.push(`Learned${node.maxRanks > 1 ? `, rank ${rank} of ${node.maxRanks}` : ''}. Permanent.`)
       else {
         const after = removeTalent(owned.value, node.id, weaponTalent, attrs.value, cls.value)
@@ -106,7 +114,7 @@ export function useTalents(opts: Options) {
       }
       if (!canAdd && rank < node.maxRanks) lines.push(...check.reasons.map(explain))
     } else if (canAdd) {
-      lines.push(`Click to learn for ${cost} IQ.`)
+      lines.push(`Click to learn for ${price(cost)}.`)
     } else {
       lines.push(...check.reasons.map(explain))
     }
@@ -119,7 +127,8 @@ export function useTalents(opts: Options) {
       rank,
       state: rank > 0 ? 'owned' : canAdd ? 'available' : 'locked',
       lines,
-      canAdd
+      canAdd,
+      permanent: isLocked(node.id, weaponTalent)
     }
   }
 
@@ -134,7 +143,7 @@ export function useTalents(opts: Options) {
     const general = canTakeTalent(node, ctx()).reasons.filter(r => r !== 'Choose a weapon talent').map(explain)
     const lines = !weapons.length
       ? ['Learn a weapon talent first.', ...general]
-      : anyAvailable ? [`Click a weapon to learn it for ${talentIqCost(node, owned.value, cls.value)} IQ.`] : general
+      : anyAvailable ? [`Click a weapon to learn it for ${price(talentIqCost(node, owned.value, cls.value))}.`] : general
     return {
       key: `${node.id}:`,
       node,
@@ -144,6 +153,7 @@ export function useTalents(opts: Options) {
       state: learned ? 'owned' : anyAvailable ? 'available' : 'locked',
       lines,
       canAdd: false,
+      permanent: false,
       weapons
     }
   }
@@ -169,7 +179,8 @@ export function useTalents(opts: Options) {
     for (const t of owned.value) {
       const node = TALENTS[t.id]
       for (let r = 0; r < t.rank && node; r++) {
-        if (!isLocked(t.id, t.weaponTalent) && !canTakeTalent(node, { ...ctx(), owned: kept }, t.weaponTalent).ok) break
+        // XP was checked when each was picked; lowering an attribute doesn't change it.
+        if (!isLocked(t.id, t.weaponTalent) && !canTakeTalent(node, { ...ctx(), xp: undefined, owned: kept }, t.weaponTalent).ok) break
         kept = addTalent(kept, t.id, t.weaponTalent)
       }
     }
@@ -183,7 +194,7 @@ export function useTalents(opts: Options) {
     const check = canTakeTalent(t, ctx())
     return `You don't know ${t.name}: −${NO_TALENT_DX_PENALTY} DX while using ${what}. `
       + (check.ok
-        ? `Learn ${t.name} in Talents for ${talentIqCost(t, owned.value, cls.value)} IQ to remove this.`
+        ? `Learn ${t.name} in Talents for ${price(talentIqCost(t, owned.value, cls.value))} to remove this.`
         : `You can't learn it yet: ${check.reasons.map(explain).join(' ')}`)
   }
 
