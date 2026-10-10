@@ -7,7 +7,7 @@ import { PROGRESSION } from '../data/progression'
 import { TALENTS } from '../data/talents'
 import { TRAITS } from '../data/traits'
 import { createRng, type SeededRng } from '../utils/rng'
-import { addTalent, adjustedDx, canTakeTalent, hasTalent, loadoutProblems, movementAllowance } from './rules'
+import { addTalent, adjustedDx, canTakeTalent, hasTalent, loadoutProblems, movementAllowance, talentXpCost } from './rules'
 
 /** A fully built opponent, regenerated from its OpponentSpec whenever needed. */
 export interface OpponentBuild {
@@ -60,16 +60,23 @@ export const buildOpponent = (spec: OpponentSpec): OpponentBuild => {
   const xpPoints = base.canUseItems ? 0 : Math.floor(spec.budget.xp / PROGRESSION.talentXpCost)
   for (let i = 0; i < spec.budget.attrPoints + xpPoints; i++) attrs[weightedAttr(rng, arch.attrBias)]++
 
+  const chosen = new Map<string, Id>()
+  const choose = (options: string): Id => {
+    if (!options.includes('|')) return options
+    const pick = chosen.get(options) ?? rng.pick(options.split('|'))
+    chosen.set(options, pick)
+    return pick
+  }
+
   // Creatures that use gear learn talents within their IQ like heroes.
-  let talents = [...base.baseTalents]
+  let talents = base.baseTalents.map(t => ({ ...t, id: choose(t.id) }))
   let xp = base.canUseItems ? spec.budget.xp : 0
   for (const entry of arch.talentPriority) {
-    if (xp < PROGRESSION.talentXpCost) break
-    const [id, weaponTalent] = entry.split(':') as [Id, Id | undefined]
+    const [id, weaponTalent] = entry.split(':').map(choose) as [Id, Id | undefined]
     const node = TALENTS[id]
-    if (!node || !canTakeTalent(node, { attrs, owned: talents, audience: 'hero' }, weaponTalent).ok) continue
+    if (!node || !canTakeTalent(node, { attrs, owned: talents, audience: 'hero', xp }, weaponTalent).ok) continue
     talents = addTalent(talents, id, weaponTalent)
-    xp -= PROGRESSION.talentXpCost
+    xp -= talentXpCost(id)
   }
 
   let weapon: WeaponDef | undefined

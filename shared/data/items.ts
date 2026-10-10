@@ -19,11 +19,11 @@ const LIST: ItemDef[] = [
   weapon({ id: 'twoHandedSword', name: 'Two-Handed Sword', icon: '⚔', talent: 'sword', damage: { dice: 3, mod: -1 }, minST: 14, hands: 2, attackKind: 'melee', weight: 3.5, cost: 120 }),
 
   // ---------- axes and maces ----------
-  weapon({ id: 'club', name: 'Club', icon: '🏏', talent: 'axMace', damage: { dice: 1, mod: 0 }, minST: 9, hands: 1, attackKind: 'melee', weight: 1.5, cost: 5 }),
-  weapon({ id: 'hammer', name: 'Hammer', icon: '🔨', talent: 'axMace', damage: { dice: 1, mod: 1 }, minST: 10, hands: 1, attackKind: 'melee', weight: 1.5, cost: 30 }),
-  weapon({ id: 'smallAx', name: 'Small Ax', icon: '🪓', talent: 'axMace', damage: { dice: 1, mod: 2 }, minST: 10, hands: 1, attackKind: 'melee', weight: 1.5, cost: 30 }),
-  weapon({ id: 'mace', name: 'Mace', icon: '🔨', talent: 'axMace', damage: { dice: 2, mod: -1 }, minST: 11, hands: 1, attackKind: 'melee', weight: 2, cost: 50 }),
-  weapon({ id: 'battleaxe', name: 'Battleaxe', icon: '🪓', talent: 'axMace', damage: { dice: 3, mod: 0 }, minST: 15, hands: 2, attackKind: 'melee', weight: 4, cost: 100 }),
+  weapon({ id: 'club', name: 'Club', icon: '🏏', talent: 'mace', damage: { dice: 1, mod: 0 }, minST: 9, hands: 1, attackKind: 'melee', weight: 1.5, cost: 5 }),
+  weapon({ id: 'hammer', name: 'Hammer', icon: '🔨', talent: 'mace', damage: { dice: 1, mod: 1 }, minST: 10, hands: 1, attackKind: 'melee', weight: 1.5, cost: 30 }),
+  weapon({ id: 'smallAx', name: 'Small Ax', icon: '🪓', talent: 'ax', damage: { dice: 1, mod: 2 }, minST: 10, hands: 1, attackKind: 'melee', weight: 1.5, cost: 30 }),
+  weapon({ id: 'mace', name: 'Mace', icon: '🔨', talent: 'mace', damage: { dice: 2, mod: -1 }, minST: 11, hands: 1, attackKind: 'melee', weight: 2, cost: 50 }),
+  weapon({ id: 'battleaxe', name: 'Battleaxe', icon: '🪓', talent: 'ax', damage: { dice: 3, mod: 0 }, minST: 15, hands: 2, attackKind: 'melee', weight: 4, cost: 100 }),
 
   // ---------- pole weapons ----------
   weapon({ id: 'spear', name: 'Spear', icon: '🔱', talent: 'poleWeapons', damage: { dice: 1, mod: 1 }, minST: 9, hands: 1, attackKind: 'pole', weight: 2, cost: 20 }),

@@ -4,7 +4,6 @@ import type { Attributes, Character, GameEvent, OwnedTalent, SaveFile, Tombstone
 import { SCHEMA_VERSION } from '#shared/types'
 import { GRADE_ORDER } from '#shared/data/grades'
 import { ITEMS } from '#shared/data/items'
-import { PROGRESSION } from '#shared/data/progression'
 import { TALENTS } from '#shared/data/talents'
 import { advance, createBattle, submit, type PlayerInput } from '#shared/engine/battle'
 import { isAlive } from '#shared/engine/combat'
@@ -12,7 +11,7 @@ import { biomeFor } from '#shared/engine/mapgen'
 import { randomSpec } from '#shared/engine/opponents'
 import { loadSave } from '#shared/engine/save'
 import { applyShop, shopStock, type ShopAction } from '#shared/engine/shop'
-import { attrTotalFor, iqUsed, levelOf, loadoutOf, loadoutProblems, newTalentRanks, rankOf } from '#shared/engine/rules'
+import { attrTotalFor, iqUsed, levelOf, loadoutOf, loadoutProblems, newTalentXp, rankOf } from '#shared/engine/rules'
 import { randomSeed } from '#shared/utils/rng'
 
 const KEY = 'meleecrawl.save'
@@ -145,7 +144,7 @@ export const useGameStore = defineStore('game', {
       const c = this.save.run?.character
       if (!c || this.save.run?.screen !== 'camp') return
       if (c.talents.some(t => rankOf(talents, t.id, t.weaponTalent) < t.rank)) return
-      const cost = newTalentRanks(c.talents, talents) * PROGRESSION.talentXpCost
+      const cost = newTalentXp(c.talents, talents)
       if (cost > c.xp.unspent || iqUsed(talents, c.class) > c.base.IQ) return
       c.talents = talents.map(t => ({ ...t }))
       c.xp.unspent -= cost

@@ -1,11 +1,13 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { Attributes, CharacterClass, OwnedTalent, TalentNode } from '#shared/types'
+import type { Attributes, CharacterClass, OwnedTalent, Requirement, TalentNode } from '#shared/types'
 import { weapons } from '#shared/data/items'
 import { NO_TALENT_DX_PENALTY, PROGRESSION } from '#shared/data/progression'
 import { TALENTS, WEAPON_TALENTS } from '#shared/data/talents'
 import {
-  addTalent, canTakeTalent, dependentsOf, hasTalent, iqUsed, rankOf, removeTalent, talentIqCost
+  addTalent, canTakeTalent, dependentsOf, hasTalent, iqUsed, rankOf, removeTalent, talentIqCost, talentXpCost
 } from '#shared/engine/rules'
+
+export interface TalentNeed { text: string; met: boolean }
 
 export interface TalentRow {
   key: string
@@ -16,7 +18,10 @@ export interface TalentRow {
   /** For a per-weapon tile: how many weapons it's learned for. */
   rank: number
   state: 'owned' | 'available' | 'locked'
-  lines: string[]
+  cost: string
+  action: string
+  needs: TalentNeed[]
+  blocks: string[]
   canAdd: boolean
   /** Learned in an earlier camp: can't be forgotten. */
   permanent: boolean
@@ -24,7 +29,19 @@ export interface TalentRow {
   weapons?: TalentRow[]
 }
 
-export interface TalentBranch { name: string; rows: TalentRow[] }
+type Pos = TalentNode['pos']
+
+export interface TalentLink { key: string; from: Pos; to: Pos; met: boolean }
+
+export interface TalentHeader { branch: string; name: string; col: number; span: number }
+
+export interface TalentTree {
+  cols: number
+  rows: number
+  headers: TalentHeader[]
+  nodes: TalentRow[]
+  links: TalentLink[]
+}
 
 interface Options {
   attrs: MaybeRefOrGetter<Attributes>
@@ -38,21 +55,45 @@ interface Options {
   xp?: MaybeRefOrGetter<number | undefined>
 }
 
-const BRANCH_NAMES: Record<string, string> = {
-  blades: 'Blades', heavy: 'Heavy weapons', polearms: 'Polearms', ranged: 'Ranged',
-  defense: 'Defense', unarmed: 'Unarmed', mobility: 'Mobility', mastery: 'Mastery'
+export const BRANCH_NAMES: Record<string, string> = {
+  blades: 'Blades', heavy: 'Ax/Mace', polearms: 'Polearms', ranged: 'Ranged',
+  defense: 'Defense', unarmed: 'Unarmed', mobility: 'Mobility', mastery: 'Mastery', tactics: 'Tactics'
 }
 
-/** Static tile list: hero-visible talents by branch, one tile per talent. */
-const LAYOUT = Object.entries(BRANCH_NAMES).map(([branch, name]) => {
-  const rows: { node: TalentNode; label: string }[] = []
-  for (const node of Object.values(TALENTS)) {
-    if (node.branch !== branch || node.for === 'creature') continue
-    rows.push({ node, label: node.name })
-  }
-  rows.sort((a, b) => a.node.pos.row - b.node.pos.row || a.node.pos.col - b.node.pos.col)
-  return { name, rows }
-})
+const HERO_NODES = Object.values(TALENTS)
+  .filter(n => n.for !== 'creature')
+  .sort((a, b) => a.pos.row - b.pos.row || a.pos.col - b.pos.col)
+
+const COLS = Math.max(...HERO_NODES.map(n => n.pos.col)) + 1
+const ROWS = Math.max(...HERO_NODES.map(n => n.pos.row)) + 1
+
+const HEADERS = Array.from({ length: COLS }, (_, col) => HERO_NODES.find(n => n.pos.col === col)?.branch)
+  .reduce<TalentHeader[]>((out, branch, col) => {
+    if (!branch) return out
+    const last = out.at(-1)
+    if (last?.branch === branch && last.col + last.span === col) last.span++
+    else out.push({ branch, name: BRANCH_NAMES[branch] ?? branch, col, span: 1 })
+    return out
+  }, [])
+
+const groupsOf = (req: Requirement | undefined): string[][] => {
+  if (!req) return []
+  if ('all' in req) return req.all.flatMap(groupsOf)
+  if ('any' in req) return [req.any.flatMap(r => groupsOf(r).flat())]
+  return 'talent' in req ? [[req.talent]] : []
+}
+
+const prereqGroups = (node: TalentNode): TalentNode[][] =>
+  [
+    ...groupsOf(node.requires),
+    ...(node.weaponPrereq ? [[node.weaponPrereq]] : node.perWeapon ? [[...WEAPON_TALENTS]] : [])
+  ]
+    .map(ids => ids.flatMap(id => (TALENTS[id] ? [TALENTS[id]] : [])))
+    .filter(group => group.length > 0)
+
+const LINKS = HERO_NODES.flatMap(node =>
+  prereqGroups(node).flat().map(from => ({ key: `${from.id}>${node.id}`, from, to: node }))
+)
 
 /** Weapons a weapon talent lets you use. */
 const weaponsFor = (talentId: string): string[] => {
@@ -92,7 +133,55 @@ export const useTalents = (opts: Options) => {
   const ctx = () => ({ attrs: attrs.value, owned: owned.value, cls: cls.value, audience: 'hero' as const, xp: toValue(opts.xp) })
   const isLocked = (id: string, wt?: string) => locked.value.some(t => t.id === id && t.weaponTalent === wt)
   /** What one more rank costs: IQ, plus XP at camp. */
-  const price = (iq: number) => (toValue(opts.xp) === undefined ? `${iq} IQ` : `${iq} IQ and ${PROGRESSION.talentXpCost} XP`)
+  const price = (node: TalentNode, iq: number) => (toValue(opts.xp) === undefined ? `${iq} IQ` : `${iq} IQ and ${talentXpCost(node.id)} XP`)
+
+  const costText = (node: TalentNode): string => {
+    const base = price(node, talentIqCost(node, owned.value, cls.value))
+    const scale = cls.value === 'wizard' ? PROGRESSION.wizardTalentMultiplier : 1
+    const others = (node.costOverrides ?? []).filter(o => !hasTalent(owned.value, o.ifHasTalent))
+    if (!others.length) return base
+    return `${base} (${others.map(o => `${o.iqCost * scale} IQ with ${TALENTS[o.ifHasTalent]?.name ?? o.ifHasTalent}`).join(', ')})`
+  }
+
+  const budgetReasons = (reasons: string[]) => reasons.filter(r => r.startsWith('Costs ')).map(explain)
+
+  const reqNeeds = (req: Requirement | undefined): TalentNeed[] => {
+    if (!req) return []
+    if ('all' in req) return req.all.flatMap(reqNeeds)
+    if ('any' in req) {
+      const parts = req.any.map(reqNeeds)
+      return [{
+        text: `One of: ${parts.map(p => p.map(n => n.text).join(' and ')).join(', ')}`,
+        met: parts.some(p => p.every(n => n.met))
+      }]
+    }
+    if ('talent' in req) {
+      const name = TALENTS[req.talent]?.name ?? req.talent
+      return [{ text: req.rank && req.rank > 1 ? `${name} rank ${req.rank}` : name, met: hasTalent(owned.value, req.talent, req.rank) }]
+    }
+    const have = attrs.value[req.attr]
+    return [{ text: `${req.attr} ${req.min} (yours ${have})`, met: have >= req.min }]
+  }
+
+  const needsFor = (node: TalentNode, weaponTalent?: string): TalentNeed[] => {
+    const iq = attrs.value.IQ
+    const out: TalentNeed[] = [{ text: `IQ ${node.minIQ} (yours ${iq})`, met: iq >= node.minIQ }]
+    if (node.perWeapon) {
+      const weaponName = weaponTalent ? TALENTS[weaponTalent]?.name ?? weaponTalent : undefined
+      out.push(weaponTalent
+        ? { text: weaponName!, met: hasTalent(owned.value, weaponTalent) }
+        : { text: 'A weapon talent', met: WEAPON_TALENTS.some(w => hasTalent(owned.value, w)) })
+      if (node.weaponPrereq) {
+        const pre = TALENTS[node.weaponPrereq]?.name ?? node.weaponPrereq
+        out.push(weaponTalent
+          ? { text: `${pre} (${weaponName})`, met: rankOf(owned.value, node.weaponPrereq, weaponTalent) > 0 }
+          : { text: `${pre} for that weapon`, met: owned.value.some(t => t.id === node.weaponPrereq) })
+      }
+    }
+    out.push(...reqNeeds(node.requires))
+    out.push(...reqNeeds(node.rankRequires?.[rankOf(owned.value, node.id, weaponTalent) + 1]))
+    return out
+  }
 
   const rowFor = (r: { node: TalentNode; weaponTalent?: string; label: string }): TalentRow => {
     const { node, weaponTalent } = r
@@ -100,23 +189,20 @@ export const useTalents = (opts: Options) => {
     const check = canTakeTalent(node, ctx(), weaponTalent)
     const canAdd = check.ok
     const cost = talentIqCost(node, owned.value, cls.value)
-    const lines: string[] = []
+    let action = ''
 
     if (rank > 0) {
-      if (canAdd) lines.push(`Learned, rank ${rank} of ${node.maxRanks}. Click to raise to rank ${rank + 1} for ${price(cost)}.`)
-      else if (isLocked(node.id, weaponTalent)) lines.push(`Learned${node.maxRanks > 1 ? `, rank ${rank} of ${node.maxRanks}` : ''}. Permanent.`)
+      if (canAdd) action = `Learned, rank ${rank} of ${node.maxRanks}. Click to raise to rank ${rank + 1} for ${price(node, cost)}.`
+      else if (isLocked(node.id, weaponTalent)) action = `Learned${node.maxRanks > 1 ? `, rank ${rank} of ${node.maxRanks}` : ''}. Permanent.`
       else {
         const after = removeTalent(owned.value, node.id, weaponTalent, attrs.value, cls.value)
         const refund = iqSpent.value - iqUsed(after, cls.value)
         const deps = dependentsOf(owned.value, node.id, weaponTalent, attrs.value, cls.value)
         const depNames = deps.map(d => d.weaponTalent ? `${TALENTS[d.id]!.name} (${TALENTS[d.weaponTalent]!.name})` : TALENTS[d.id]!.name)
-        lines.push(`Click to forget: +${refund} IQ.${deps.length ? ` Also forgets ${depNames.join(', ')}` : ''}`)
+        action = `Click to forget: +${refund} IQ.${deps.length ? ` Also forgets ${depNames.join(', ')}.` : ''}`
       }
-      if (!canAdd && rank < node.maxRanks) lines.push(...check.reasons.map(explain))
     } else if (canAdd) {
-      lines.push(`Click to learn for ${price(cost)}.`)
-    } else {
-      lines.push(...check.reasons.map(explain))
+      action = `Click to learn for ${price(node, cost)}.`
     }
 
     const uses = weaponsFor(weaponTalent ?? node.id)
@@ -126,7 +212,10 @@ export const useTalents = (opts: Options) => {
       weaponLine: uses.length ? `Weapons: ${uses.join(', ')}.` : '',
       rank,
       state: rank > 0 ? 'owned' : canAdd ? 'available' : 'locked',
-      lines,
+      cost: costText(node),
+      action,
+      needs: needsFor(node, weaponTalent),
+      blocks: rank < node.maxRanks ? budgetReasons(check.reasons) : [],
       canAdd,
       permanent: isLocked(node.id, weaponTalent)
     }
@@ -139,11 +228,6 @@ export const useTalents = (opts: Options) => {
       .map(w => rowFor({ node, weaponTalent: w, label: TALENTS[w]!.name }))
     const learned = weapons.filter(w => w.rank > 0).length
     const anyAvailable = weapons.some(w => w.canAdd)
-    // Reasons that hold whichever weapon is picked (IQ, DX).
-    const general = canTakeTalent(node, ctx()).reasons.filter(r => r !== 'Choose a weapon talent').map(explain)
-    const lines = !weapons.length
-      ? ['Learn a weapon talent first.', ...general]
-      : anyAvailable ? [`Click a weapon to learn it for ${price(talentIqCost(node, owned.value, cls.value))}.`] : general
     return {
       key: `${node.id}:`,
       node,
@@ -151,21 +235,31 @@ export const useTalents = (opts: Options) => {
       weaponLine: '',
       rank: learned,
       state: learned ? 'owned' : anyAvailable ? 'available' : 'locked',
-      lines,
+      cost: costText(node),
+      action: anyAvailable ? 'Click a weapon to learn it.' : '',
+      needs: needsFor(node),
+      blocks: budgetReasons(canTakeTalent(node, ctx()).reasons),
       canAdd: false,
       permanent: false,
       weapons
     }
   }
 
-  /** Every tile's state and text, worked out once per change. */
-  const branches = computed<TalentBranch[]>(() => LAYOUT.map(b => ({
-    name: b.name,
-    rows: b.rows.map(r => (r.node.perWeapon ? perWeaponRow(r.node) : rowFor(r)))
-  })))
+  const linked = (from: TalentNode, to: TalentNode) =>
+    hasTalent(owned.value, from.id) &&
+    owned.value.some(t => t.id === to.id && (!to.perWeapon || !!to.weaponPrereq || t.weaponTalent === from.id))
+
+  const tree = computed<TalentTree>(() => ({
+    cols: COLS,
+    rows: ROWS,
+    headers: HEADERS,
+    nodes: HERO_NODES.map(node => (node.perWeapon ? perWeaponRow(node) : rowFor({ node, label: node.name }))),
+    links: LINKS.map(l => ({ key: l.key, from: l.from.pos, to: l.to.pos, met: linked(l.from, l.to) }))
+  }))
 
   /** New talent list after clicking a tile: learn, next rank, or forget. */
   const toggle = (row: TalentRow): OwnedTalent[] => {
+    if (row.weapons) return owned.value
     if (row.canAdd) return addTalent(owned.value, row.node.id, row.weaponTalent)
     if (row.rank > 0 && !isLocked(row.node.id, row.weaponTalent)) {
       return removeTalent(owned.value, row.node.id, row.weaponTalent, attrs.value, cls.value)
@@ -194,9 +288,9 @@ export const useTalents = (opts: Options) => {
     const check = canTakeTalent(t, ctx())
     return `You don't know ${t.name}: −${NO_TALENT_DX_PENALTY} DX while using ${what}. `
       + (check.ok
-        ? `Learn ${t.name} in Talents for ${price(talentIqCost(t, owned.value, cls.value))} to remove this.`
+        ? `Learn ${t.name} in Talents for ${price(t, talentIqCost(t, owned.value, cls.value))} to remove this.`
         : `You can't learn it yet: ${check.reasons.map(explain).join(' ')}`)
   }
 
-  return { branches, iqSpent, iqLeft, toggle, prune, talentNote }
+  return { tree, iqSpent, iqLeft, toggle, prune, talentNote }
 }

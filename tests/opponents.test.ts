@@ -4,7 +4,7 @@ import { TALENTS } from '#shared/data/talents'
 import { buildOpponent, randomSpec } from '#shared/engine/opponents'
 
 describe('buildOpponent', () => {
-  const spec = { baseId: 'orc', archetypeId: 'brute', budget: { attrPoints: 4, xp: 1500 }, seed: 42 }
+  const spec = { baseId: 'human', archetypeId: 'brute', budget: { attrPoints: 4, xp: 1500 }, seed: 42 }
 
   it('is deterministic for the same spec', () => {
     expect(buildOpponent(spec)).toEqual(buildOpponent(spec))
@@ -12,13 +12,13 @@ describe('buildOpponent', () => {
 
   it('spends exactly the attribute budget', () => {
     const o = buildOpponent(spec)
-    const base = CREATURES.orc!.attrs
+    const base = CREATURES.human!.attrs
     expect(o.attrs.ST + o.attrs.DX + o.attrs.IQ).toBe(base.ST + base.DX + base.IQ + 4)
   })
 
-  it('an entry-level orc is a Grunt, a big budget makes a Chieftain', () => {
-    expect(buildOpponent({ ...spec, budget: { attrPoints: 0, xp: 0 } }).name).toBe('Orc Grunt')
-    expect(buildOpponent({ ...spec, budget: { attrPoints: 8, xp: 3000 } }).name).toBe('Orc Chieftain')
+  it('an entry-level Brute is a Grunt, a big budget makes a Chieftain', () => {
+    expect(buildOpponent({ ...spec, budget: { attrPoints: 0, xp: 0 } }).name).toBe('Human Grunt')
+    expect(buildOpponent({ ...spec, budget: { attrPoints: 8, xp: 3000 } }).name).toBe('Human Chieftain')
   })
 
   it('turns a beast\'s XP into attribute points, keeps its traits, and puts the title first', () => {
@@ -37,6 +37,18 @@ describe('buildOpponent', () => {
     expect(rat.ma).toBe(CREATURES.giantRat!.attrs.MA + 2) // Swift
     const bear = buildOpponent({ baseId: 'bear', archetypeId: 'pack', budget: { attrPoints: 0, xp: 0 }, seed: 1 })
     expect(bear.hitsStopped).toBe(CREATURES.bear!.naturalHitsStopped + 1) // Thick Hide
+  })
+
+  it('a Brute gets either Ax or Mace, and its Weapon Expertise matches', () => {
+    const picks = new Set<string>()
+    for (let seed = 0; seed < 20; seed++) {
+      const o = buildOpponent({ ...spec, budget: { attrPoints: 0, xp: 1500 }, seed })
+      const weaponTalent = o.talents.find(t => t.id === 'ax' || t.id === 'mace')!.id
+      picks.add(weaponTalent)
+      const expertise = o.talents.find(t => t.id === 'weaponExpertise')
+      if (expertise) expect(expertise.weaponTalent).toBe(weaponTalent)
+    }
+    expect([...picks].sort()).toEqual(['ax', 'mace'])
   })
 
   it('never produces an illegal build across many seeds and budgets', () => {

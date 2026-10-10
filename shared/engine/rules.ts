@@ -37,6 +37,11 @@ export const talentIqCost = (node: TalentNode, owned: OwnedTalent[], cls: Charac
   return cls === 'wizard' ? base * PROGRESSION.wizardTalentMultiplier : base
 }
 
+export const talentXpCost = (id: Id): number => {
+  const table = PROGRESSION.talentXpByRow
+  return table[Math.min(TALENTS[id]?.pos.row ?? 0, table.length - 1)]!
+}
+
 /** Total IQ committed to talents, in purchase order (so overrides apply as they did when bought). */
 export const iqUsed = (owned: OwnedTalent[], cls: CharacterClass = 'hero'): number => {
   let total = 0
@@ -56,7 +61,7 @@ export interface TakeContext {
   audience: 'hero' | 'creature'
   /** Creatures don't spend IQ on talents. */
   checkIq?: boolean
-  /** XP left to spend (camp). When set, each new rank also costs PROGRESSION.talentXpCost. */
+  /** XP left to spend (camp). When set, each new rank also costs talentXpCost(). */
   xp?: number
 }
 
@@ -79,17 +84,18 @@ export const canTakeTalent = (node: TalentNode, ctx: TakeContext, weaponTalent?:
     const cost = talentIqCost(node, ctx.owned, ctx.cls)
     if (cost > free) reasons.push(`Costs ${cost} IQ (${free} left)`)
   }
-  if (ctx.xp !== undefined && ctx.xp < PROGRESSION.talentXpCost) {
-    reasons.push(`Costs ${PROGRESSION.talentXpCost} XP (${ctx.xp} left)`)
+  const xpCost = talentXpCost(node.id)
+  if (ctx.xp !== undefined && ctx.xp < xpCost) {
+    reasons.push(`Costs ${xpCost} XP (${ctx.xp} left)`)
   }
   reasons.push(...missingRequirements(node.requires, ctx.attrs, ctx.owned))
   reasons.push(...missingRequirements(node.rankRequires?.[nextRank], ctx.attrs, ctx.owned))
   return { ok: reasons.length === 0, reasons }
 }
 
-/** Ranks in `after` that `before` didn't have: what camp charges XP for. */
-export const newTalentRanks = (before: OwnedTalent[], after: OwnedTalent[]): number => {
-  return after.reduce((n, t) => n + Math.max(0, t.rank - rankOf(before, t.id, t.weaponTalent)), 0)
+/** XP for the ranks in `after` that `before` didn't have: what camp charges. */
+export const newTalentXp = (before: OwnedTalent[], after: OwnedTalent[]): number => {
+  return after.reduce((n, t) => n + Math.max(0, t.rank - rankOf(before, t.id, t.weaponTalent)) * talentXpCost(t.id), 0)
 }
 
 /** Talents that would be removed along with this one. */

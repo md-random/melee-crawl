@@ -34,7 +34,7 @@ describe('data integrity', () => {
 
   it('creatures and archetypes reference existing talents, items and bases', () => {
     for (const c of Object.values(CREATURES)) {
-      for (const t of c.baseTalents) expect(TALENTS[t.id], `${c.id} → ${t.id}`).toBeDefined()
+      for (const t of c.baseTalents) for (const id of t.id.split('|')) expect(TALENTS[id], `${c.id} → ${id}`).toBeDefined()
       for (const t of c.traits) {
         expect(TRAITS[t.id], `${c.id} → trait ${t.id}`).toBeDefined()
         expect(t.rank, `${c.id} → trait ${t.id} rank`).toBeLessThanOrEqual(TRAITS[t.id]!.maxRanks)
@@ -43,9 +43,7 @@ describe('data integrity', () => {
     }
     for (const a of Object.values(ARCHETYPES)) {
       for (const entry of a.talentPriority) {
-        const [id, weapon] = entry.split(':')
-        expect(TALENTS[id!], `${a.id} → ${id}`).toBeDefined()
-        if (weapon) expect(TALENTS[weapon], `${a.id} → ${weapon}`).toBeDefined()
+        for (const id of entry.split(/[:|]/)) expect(TALENTS[id], `${a.id} → ${id}`).toBeDefined()
       }
       for (const id of [...(a.gear?.weapons ?? []), a.gear?.armor, a.gear?.shield].filter(Boolean)) {
         expect(ITEMS[id!], `${a.id} → ${id}`).toBeDefined()

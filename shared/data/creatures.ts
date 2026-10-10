@@ -6,7 +6,7 @@ import type { Archetype, CreatureBase } from '../types'
 const RAW: CreatureBase[] = [
   // ---------- humanoids (use items, built through archetypes) ----------
   { id: 'human', name: 'Human', portraitId: 'warrior', genus: 'human', tags: ['humanoid'], attrs: { ST: 10, DX: 10, IQ: 9, MA: 10 }, naturalWeapons: [], naturalHitsStopped: 0, baseTalents: [], traits: [], canUseItems: true, hexSize: 1, xpValue: 40, goldDrop: { dice: 2, mod: 5 } },
-  { id: 'orc', name: 'Orc', portraitId: 'monster', genus: 'orc', tags: ['humanoid', 'orc'], attrs: { ST: 12, DX: 9, IQ: 7, MA: 10 }, naturalWeapons: [], naturalHitsStopped: 0, baseTalents: [{ id: 'axMace', rank: 1 }], traits: [], canUseItems: true, hexSize: 1, xpValue: 40, goldDrop: { dice: 2, mod: 0 } },
+  { id: 'orc', name: 'Orc', portraitId: 'monster', genus: 'orc', tags: ['humanoid', 'orc'], attrs: { ST: 12, DX: 9, IQ: 7, MA: 10 }, naturalWeapons: [{ name: 'Fists', damage: { dice: 1, mod: 2 }, attackKind: 'melee' }], naturalHitsStopped: 0, baseTalents: [{ id: 'brawling', rank: 1 }], traits: [], canUseItems: false, hexSize: 1, xpValue: 40, goldDrop: { dice: 2, mod: 0 } },
   { id: 'goblin', name: 'Goblin', portraitId: 'monster', genus: 'goblin', tags: ['humanoid', 'goblin'], attrs: { ST: 8, DX: 11, IQ: 7, MA: 10 }, naturalWeapons: [], naturalHitsStopped: 0, baseTalents: [{ id: 'dagger', rank: 1 }], traits: [], canUseItems: true, hexSize: 1, xpValue: 25, goldDrop: { dice: 1, mod: 0 } },
   { id: 'hobgoblin', name: 'Hobgoblin', portraitId: 'monster', genus: 'hobgoblin', tags: ['humanoid', 'goblin'], attrs: { ST: 11, DX: 10, IQ: 7, MA: 10 }, naturalWeapons: [], naturalHitsStopped: 0, baseTalents: [{ id: 'sword', rank: 1 }], traits: [], canUseItems: true, hexSize: 1, xpValue: 35, goldDrop: { dice: 2, mod: 0 } },
   { id: 'skeleton', name: 'Skeleton', portraitId: 'monster', genus: 'undead', tags: ['undead'], attrs: { ST: 9, DX: 10, IQ: 6, MA: 10 }, naturalWeapons: [{ name: 'Claws', damage: { dice: 1, mod: 0 }, attackKind: 'melee' }], naturalHitsStopped: 1, baseTalents: [], traits: [], canUseItems: false, hexSize: 1, xpValue: 35, goldDrop: { dice: 1, mod: 0 } },
@@ -26,7 +26,7 @@ const ARCHETYPE_LIST: Archetype[] = [
   {
     id: 'brute', name: 'Brute', appliesTo: { baseIds: ['orc', 'hobgoblin', 'human'] },
     attrBias: { ST: 0.7, DX: 0.3 },
-    talentPriority: ['axMace', 'toughness', 'weaponExpertise:axMace'],
+    talentPriority: ['ax|mace', 'toughness', 'weaponExpertise:ax|mace'],
     gear: { weapons: ['battleaxe', 'mace', 'smallAx', 'club'], armor: 'leather' },
     aiProfile: 'brute',
     titles: [{ minBudget: 0, title: 'Grunt' }, { minBudget: 3, title: 'Warrior' }, { minBudget: 7, title: 'Veteran' }, { minBudget: 12, title: 'Chieftain' }]

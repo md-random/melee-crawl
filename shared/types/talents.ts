@@ -58,5 +58,6 @@ export interface ProgressionRules {
   /** Cumulative XP → attribute total. Unverified, from secondary source. */
   attrXpTable: { totalXp: number; attrTotal: number }[]
   talentXpCost: number         // 500 (unverified)
+  talentXpByRow: number[]
   wizardTalentMultiplier: number // 2
 }

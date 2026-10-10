@@ -19,6 +19,7 @@ export const PROGRESSION: ProgressionRules = {
     { totalXp: 17500, attrTotal: 41 }
   ],
   talentXpCost: 500,
+  talentXpByRow: [50, 100, 300, 400, 500, 600],
   wizardTalentMultiplier: 2
 }
 

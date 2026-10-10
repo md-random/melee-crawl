@@ -4,7 +4,7 @@ import { ITEMS } from '#shared/data/items'
 import { TALENTS } from '#shared/data/talents'
 import {
   addTalent, adjustedDx, attrPointsLeft, attrTotalFor, canTakeTalent, createCharacter, creationProblems,
-  dependentsOf, hasTalent, iqUsed, loadoutOf, newTalentRanks, nextAttrStep, removeTalent
+  dependentsOf, hasTalent, iqUsed, loadoutOf, newTalentXp, nextAttrStep, removeTalent, talentXpCost
 } from '#shared/engine/rules'
 
 const attrs: Attributes = { ST: 12, DX: 12, IQ: 8 }
@@ -21,7 +21,7 @@ describe('talents', () => {
     expect(canTakeTalent(TALENTS.running!, hero()).ok).toBe(true)
     expect(canTakeTalent(TALENTS.toughness!, hero()).reasons).toContain('Needs IQ 9 (have 8)')
     const full = addTalent(addTalent(addTalent([], 'sword'), 'shield'), 'running') // 2 + 1 + 2 = 5
-    expect(canTakeTalent(TALENTS.axMace!, hero(addTalent(full, 'bow'))).ok).toBe(false)
+    expect(canTakeTalent(TALENTS.ax!, hero(addTalent(full, 'bow'))).ok).toBe(false)
     const smart = { ST: 13, DX: 12, IQ: 12 }
     expect(canTakeTalent(TALENTS.toughness!, hero([], smart)).ok).toBe(true)
     expect(canTakeTalent(TALENTS.toughness2!, hero([], smart)).reasons).toContain('Needs Toughness I')
@@ -40,16 +40,20 @@ describe('talents', () => {
     expect(dependentsOf(owned, 'shield', undefined, smart).map(t => t.id)).toEqual(['shieldExpertise'])
   })
 
-  it('at camp, a new talent also needs 500 XP unspent', () => {
-    expect(canTakeTalent(TALENTS.running!, { ...hero(), xp: 499 }).reasons).toContain('Costs 500 XP (499 left)')
-    expect(canTakeTalent(TALENTS.running!, { ...hero(), xp: 500 }).ok).toBe(true)
+  it('at camp, a new talent also needs XP unspent', () => {
+    expect(canTakeTalent(TALENTS.running!, { ...hero(), xp: 49 }).reasons).toContain('Costs 50 XP (49 left)')
+    expect(canTakeTalent(TALENTS.running!, { ...hero(), xp: 50 }).ok).toBe(true)
     expect(canTakeTalent(TALENTS.running!, hero()).ok).toBe(true) // no XP check outside camp
   })
 
-  it('counts only the ranks added since the last save', () => {
+  it('XP cost follows the talent\'s tree level', () => {
+    expect(['running', 'alertness', 'acrobatics', 'unarmed3', 'unarmed4', 'unarmed5'].map(talentXpCost)).toEqual([50, 100, 300, 400, 500, 600])
+  })
+
+  it('charges XP only for the ranks added since the last save', () => {
     const before = addTalent([], 'sword')
-    expect(newTalentRanks(before, before)).toBe(0)
-    expect(newTalentRanks(before, addTalent(addTalent(before, 'running'), 'weaponExpertise', 'sword'))).toBe(2)
+    expect(newTalentXp(before, before)).toBe(0)
+    expect(newTalentXp(before, addTalent(addTalent(before, 'running'), 'weaponExpertise', 'sword'))).toBe(50 + 100)
   })
 
   it('per-weapon talents need the weapon talent', () => {
@@ -60,15 +64,15 @@ describe('talents', () => {
 
   it('Weapon Mastery needs Weapon Expertise for the same weapon', () => {
     const ace = { ST: 12, DX: 14, IQ: 30 }
-    const sword = addTalent(addTalent([], 'sword'), 'axMace')
-    const expert = addTalent(sword, 'weaponExpertise', 'axMace')
+    const sword = addTalent(addTalent([], 'sword'), 'ax')
+    const expert = addTalent(sword, 'weaponExpertise', 'ax')
     expect(canTakeTalent(TALENTS.weaponMastery!, hero(expert, ace), 'sword').reasons).toContain('Needs Weapon Expertise (Sword)')
     expect(canTakeTalent(TALENTS.weaponMastery!, hero(addTalent(expert, 'weaponExpertise', 'sword'), ace), 'sword').ok).toBe(true)
   })
 
   it('Missile Weapons can be taken three times', () => {
     const smart = { ST: 12, DX: 12, IQ: 12 }
-    const twice = addTalent(addTalent([], 'missileWeapons'), 'missileWeapons')
+    const twice = addTalent(addTalent(addTalent([], 'bow'), 'missileWeapons'), 'missileWeapons')
     expect(canTakeTalent(TALENTS.missileWeapons!, hero(twice, smart)).ok).toBe(true)
     expect(canTakeTalent(TALENTS.missileWeapons!, hero(addTalent(twice, 'missileWeapons'), smart)).reasons).toContain('Already at max rank')
   })

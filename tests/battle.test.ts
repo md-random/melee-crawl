@@ -26,6 +26,7 @@ const hero = (over: Partial<Parameters<typeof createCharacter>[0]> = {}): Charac
 }, () => `id${n++}`)
 
 const orc = { baseId: 'orc', archetypeId: 'brute', budget: { attrPoints: 0, xp: 0 }, seed: 7 }
+const brute = { baseId: 'human', archetypeId: 'brute', budget: { attrPoints: 0, xp: 500 }, seed: 7 }
 
 /** Dice that come up in the given order (3 when the list runs out). */
 const fixedDice = (...seq: number[]): Rng => ({ roll: (count: number) => Array.from({ length: count }, () => seq.shift() ?? 3) })
@@ -141,8 +142,8 @@ describe('facing and engagement', () => {
 })
 
 describe('attacks', () => {
-  const faceOff = () => {
-    const s = arena()
+  const faceOff = (opponents = [orc]) => {
+    const s = arena(hero(), opponents)
     const { me, foe } = unitsOf(s)
     place(foe, CENTER, 1)
     place(me, neighbor(CENTER, 1), 4)
@@ -160,7 +161,7 @@ describe('attacks', () => {
   })
 
   it('hits on a low roll, armor stops damage, and 0 ST kills', () => {
-    const { s, me, foe } = faceOff()
+    const { s, me, foe } = faceOff([brute])
     const armor = 2 // the brute's leather
     foe.stCurrent = 3
     // To-hit 3,3,3 = 9; damage 2d: 6+6 = 12 → 10 through armor.
@@ -285,7 +286,7 @@ describe('effects', () => {
 
 describe('AI', () => {
   it('attacks an adjacent enemy it can hit, facing it', () => {
-    const s = arena()
+    const s = arena(hero(), [brute])
     const { me, foe } = unitsOf(s)
     place(me, CENTER, 1)
     place(foe, neighbor(CENTER, 1), 4)

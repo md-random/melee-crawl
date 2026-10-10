@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { Attributes, ConsumableDef, GradeId, ItemDef, ItemInstance, ItemKind, OwnedTalent } from '#shared/types'
-import { NO_TALENT_DX_PENALTY, PROGRESSION } from '#shared/data/progression'
+import { NO_TALENT_DX_PENALTY } from '#shared/data/progression'
 import { TALENTS } from '#shared/data/talents'
 import { defOf, gradeOf, itemName } from '#shared/engine/items'
 import { comparePower, withItem } from '#shared/engine/power'
 import {
-  attrTotalFor, hasTalent, loadoutOf, loadoutProblems, newTalentRanks, nextAttrStep, rankOf
+  attrTotalFor, hasTalent, loadoutOf, loadoutProblems, newTalentXp, nextAttrStep, rankOf, talentXpCost
 } from '#shared/engine/rules'
 import { applyShop, fits, itemIn, sellPrice, type GearSlot, type ShopAction, type ShopState } from '#shared/engine/shop'
 import { TEST_BONUS_ATTR_POINTS, useGameStore } from '~/stores/game'
@@ -51,7 +51,7 @@ const pointsSize = computed(() => `${stackHeight.value * 0.57}px`)
 const savedTalents = computed<OwnedTalent[]>(() => hero.value?.talents ?? [])
 const talents = ref<OwnedTalent[]>(savedTalents.value.map(t => ({ ...t })))
 const xpLeft = computed(() =>
-  (hero.value?.xp.unspent ?? 0) - newTalentRanks(savedTalents.value, talents.value) * PROGRESSION.talentXpCost
+  (hero.value?.xp.unspent ?? 0) - newTalentXp(savedTalents.value, talents.value)
 )
 
 // ---------- shop ----------
@@ -297,7 +297,7 @@ const shownWarnings = computed(() => [
   ...gearWarnings.value,
   ...(TEST_ALERTS
     ? [
-        `You don't know Ax/Mace: −${NO_TALENT_DX_PENALTY} DX with the Mace.`,
+        `You don't know Mace: −${NO_TALENT_DX_PENALTY} DX with the Mace.`,
         `You don't know Shield: −${NO_TALENT_DX_PENALTY} DX with the Large Shield.`,
         'Shield Expertise does nothing without a shield.',
         'Chainmail limits movement to 6 hexes.'
@@ -319,7 +319,7 @@ const changes = computed(() => {
   for (const t of talents.value) {
     const name = `${TALENTS[t.id]?.name ?? t.id}${t.weaponTalent ? ` (${TALENTS[t.weaponTalent]?.name ?? t.weaponTalent})` : ''}`
     for (let r = rankOf(savedTalents.value, t.id, t.weaponTalent) + 1; r <= t.rank; r++) {
-      out.push({ icon: '📜', lead: `${r > 1 ? `${name} rank ${r}` : `Learned ${name}`} · −${PROGRESSION.talentXpCost} XP` })
+      out.push({ icon: '📜', lead: `${r > 1 ? `${name} rank ${r}` : `Learned ${name}`} · −${talentXpCost(t.id)} XP` })
     }
   }
 
@@ -399,7 +399,7 @@ const nextBattle = () => {
 
         <div class="go-col">
           <p class="note">
-            Each new talent costs {{ PROGRESSION.talentXpCost }} XP as well as IQ.
+            Each new talent costs XP as well as IQ.
             Anything placed, learned, bought or sold here can be taken back until you press Next battle.
           </p>
           <ul class="changes">
@@ -434,6 +434,7 @@ const nextBattle = () => {
           <TalentPicker
             v-if="tab === 'talents'"
             v-model="talents"
+            class="col-panel"
             :attrs="attrs"
             :cls="hero.class"
             :locked="savedTalents"
