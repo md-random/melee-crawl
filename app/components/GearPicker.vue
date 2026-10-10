@@ -60,7 +60,7 @@ watch(weapon, (id) => {
 })
 
 /** Why a one-handed weapon can't be the second weapon, or '' if it can. */
-function offWeaponBlock(w: { minST: number; talent: string }): string {
+const offWeaponBlock = (w: { minST: number; talent: string }): string => {
   if (props.attrs.ST < w.minST) return 'too heavy'
   if (!hasTalent(props.talents, w.talent)) return 'no talent'
   return ''

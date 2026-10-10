@@ -39,7 +39,7 @@ export const AI_PROFILES: Record<AiProfileId, AiWeights> = {
 const weightsOf = (u: Unit) => AI_PROFILES[u.aiProfile ?? 'duelist']
 
 /** How exposed a unit would be at this hex and facing. */
-export function exposure(state: BattleState, u: Unit, pos: Hex, facing: Facing): number {
+export const exposure = (state: BattleState, u: Unit, pos: Hex, facing: Facing): number => {
   let total = 0
   for (const e of enemiesOf(state, u)) {
     const dist = hexDistance(e.pos, pos)
@@ -56,7 +56,7 @@ export function exposure(state: BattleState, u: Unit, pos: Hex, facing: Facing):
 }
 
 /** Allies already next to an enemy that this hex is also next to. */
-function flank(state: BattleState, u: Unit, pos: Hex): number {
+const flank = (state: BattleState, u: Unit, pos: Hex): number => {
   let n = 0
   for (const e of enemiesOf(state, u)) {
     if (hexDistance(e.pos, pos) !== 1) continue
@@ -65,7 +65,7 @@ function flank(state: BattleState, u: Unit, pos: Hex): number {
   return n
 }
 
-function positionScore(state: BattleState, u: Unit, pos: Hex, facing: Facing): number {
+const positionScore = (state: BattleState, u: Unit, pos: Hex, facing: Facing): number => {
   const w = weightsOf(u)
   const enemies = enemiesOf(state, u)
   if (!enemies.length) return 0
@@ -79,7 +79,7 @@ function positionScore(state: BattleState, u: Unit, pos: Hex, facing: Facing): n
 interface Scored { choice: ChosenAction; target?: Id | HexKey; score: number }
 
 /** Best action and target for a unit as it stands (its pos, facing and hexesMoved). */
-function bestAction(state: BattleState, actor: Unit, rng: Rng): Scored {
+const bestAction = (state: BattleState, actor: Unit, rng: Rng): Scored => {
   const w = weightsOf(actor)
   let best: Scored = { choice: { actionId: 'pass' }, score: 0 }
   for (const choice of availableChoices(state, actor, rng)) {
@@ -111,7 +111,7 @@ export interface AiPlan {
  * action from there plus how good the position is, and keeps the top one.
  * Exact ties are broken with the battle's seeded RNG, so replays match.
  */
-export function planTurn(state: BattleState, u: Unit, rng: SeededRng): AiPlan {
+export const planTurn = (state: BattleState, u: Unit, rng: SeededRng): AiPlan => {
   const options = movementOptions(state, u)
   let best: AiPlan[] = []
   let bestScore = -Infinity
@@ -134,7 +134,7 @@ export function planTurn(state: BattleState, u: Unit, rng: SeededRng): AiPlan {
 }
 
 /** Action choice at the select step: keeps the plan if still possible, otherwise picks again. */
-export function chooseAction(state: BattleState, u: Unit, rng: Rng): { choice: ChosenAction; target?: Id | HexKey } {
+export const chooseAction = (state: BattleState, u: Unit, rng: Rng): { choice: ChosenAction; target?: Id | HexKey } => {
   const planned = u.turn.action
   if (planned) {
     const def = ACTIONS[planned.actionId]
@@ -145,7 +145,7 @@ export function chooseAction(state: BattleState, u: Unit, rng: Rng): { choice: C
 }
 
 /** Target at resolve time: the planned one if still valid, otherwise the best by estimate. */
-export function chooseTarget(state: BattleState, u: Unit, choice: ChosenAction, rng: Rng): Id | HexKey | undefined {
+export const chooseTarget = (state: BattleState, u: Unit, choice: ChosenAction, rng: Rng): Id | HexKey | undefined => {
   const def = ACTIONS[choice.actionId]
   if (!def) return undefined
   const ctx = contextFor(state, u, choice, rng)

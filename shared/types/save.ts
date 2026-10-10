@@ -2,9 +2,10 @@ import type { Id } from './core'
 import type { BattleState } from './battle'
 import type { Character, CharacterClass, RunStats } from './character'
 import type { Encounter } from './creatures'
+import type { ItemInstance } from './items'
 
 /** Bump with a migration in engine/save.ts whenever the save format changes. */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /** NetHack-style grave record; the leaderboard is a sorted list of these. */
 export interface Tombstone {
@@ -30,7 +31,7 @@ export interface SaveFile {
     nextEncounter?: Encounter
     battle?: BattleState
     /** This camp visit's shop; cleared on leaving camp. */
-    shop?: { stock: Id[] }
+    shop?: { stock: ItemInstance[] }
   }
   graveyard: Tombstone[]
   settings: { animationSpeed: number; logLimit: number }

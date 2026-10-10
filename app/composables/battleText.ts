@@ -15,7 +15,7 @@ export const PHASE_NAMES: Record<Phase, string> = {
 }
 
 /** One log line per engine event. */
-export function describeEvent(state: BattleState, e: GameEvent): string {
+export const describeEvent = (state: BattleState, e: GameEvent): string => {
   const name = (uid?: Id) => (uid ? state.units[uid]?.name ?? uid : '?')
   switch (e.kind) {
     case 'roll': {

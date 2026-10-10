@@ -107,14 +107,14 @@ const center = (key: HexKey): Point => {
   return { x: p.x + origin.x, y: p.y + origin.y }
 }
 
-function tracePath(ctx: CanvasRenderingContext2D, pts: Point[]) {
+const tracePath = (ctx: CanvasRenderingContext2D, pts: Point[]) => {
   ctx.beginPath()
   pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)))
   ctx.closePath()
 }
 
 /** Cheap stable per-hex jitter so boulders/trees don't all look identical. */
-function jitter(key: HexKey, i: number): number {
+const jitter = (key: HexKey, i: number): number => {
   let h = 2166136261
   for (const c of key + i) h = Math.imul(h ^ c.charCodeAt(0), 16777619)
   return ((h >>> 0) % 1000) / 1000
@@ -122,7 +122,7 @@ function jitter(key: HexKey, i: number): number {
 
 // Trees are drawn side-on (trunk + crown) so they read as trees at a glance.
 
-function treeBase(ctx: CanvasRenderingContext2D, c: Point, s: number, trunkTop: number, trunkW: number) {
+const treeBase = (ctx: CanvasRenderingContext2D, c: Point, s: number, trunkTop: number, trunkW: number) => {
   ctx.beginPath()
   ctx.ellipse(c.x, c.y + s * 0.7, s * 0.42, s * 0.11, 0, 0, Math.PI * 2)
   ctx.fillStyle = 'rgba(40, 30, 15, 0.3)'
@@ -141,7 +141,7 @@ function treeBase(ctx: CanvasRenderingContext2D, c: Point, s: number, trunkTop: 
 }
 
 /** Broadleaf: trunk with a round, lumpy crown. */
-function drawLeafy(ctx: CanvasRenderingContext2D, key: HexKey, c: Point, s: number) {
+const drawLeafy = (ctx: CanvasRenderingContext2D, key: HexKey, c: Point, s: number) => {
   treeBase(ctx, c, s, 0.05, s * 0.16)
   const k = 0.9 + jitter(key, 1) * 0.15
   const lobes = [
@@ -169,7 +169,7 @@ function drawLeafy(ctx: CanvasRenderingContext2D, key: HexKey, c: Point, s: numb
 }
 
 /** Conifer: short trunk under three stacked triangles. */
-function drawPine(ctx: CanvasRenderingContext2D, key: HexKey, c: Point, s: number) {
+const drawPine = (ctx: CanvasRenderingContext2D, key: HexKey, c: Point, s: number) => {
   treeBase(ctx, c, s, 0.45, s * 0.14)
   const k = 0.92 + jitter(key, 1) * 0.12
   const tiers: [base: number, half: number, apex: number][] = [
@@ -195,7 +195,7 @@ function drawPine(ctx: CanvasRenderingContext2D, key: HexKey, c: Point, s: numbe
   }
 }
 
-function drawTerrain(ctx: CanvasRenderingContext2D, key: HexKey, terrain: Terrain) {
+const drawTerrain = (ctx: CanvasRenderingContext2D, key: HexKey, terrain: Terrain) => {
   const c = center(key)
   const s = hexSize
 
@@ -234,7 +234,7 @@ const ROCK_FACES: { verts: number[]; color: keyof typeof COLORS }[] = [
 ]
 
 /** Side-on faceted boulder, lit from the top left. */
-function drawBoulder(ctx: CanvasRenderingContext2D, key: string, c: Point, s: number, scale: number) {
+const drawBoulder = (ctx: CanvasRenderingContext2D, key: string, c: Point, s: number, scale: number) => {
   const k = s * scale * (0.9 + jitter(key as HexKey, 0) * 0.15)
   const pts = ROCK_VERTS.map(([dx, dy], i) => ({
     x: c.x + k * (dx + (jitter(key as HexKey, i + 1) - 0.5) * 0.12),
@@ -262,7 +262,7 @@ function drawBoulder(ctx: CanvasRenderingContext2D, key: string, c: Point, s: nu
   ctx.stroke()
 }
 
-function renderTerrainLayer(dpr: number) {
+const renderTerrainLayer = (dpr: number) => {
   const { w, h } = cssSize.value
   terrainLayer ??= document.createElement('canvas')
   terrainLayer.width = Math.round(w * dpr)
@@ -302,7 +302,7 @@ function renderTerrainLayer(dpr: number) {
   }
 }
 
-function drawOverlay(ctx: CanvasRenderingContext2D, key: HexKey, overlay: OverlayId) {
+const drawOverlay = (ctx: CanvasRenderingContext2D, key: HexKey, overlay: OverlayId) => {
   const c = center(key)
   const s = hexSize
   tracePath(ctx, hexCorners(c, s))
@@ -341,7 +341,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, key: HexKey, overlay: Overla
   }
 }
 
-function drawToken(ctx: CanvasRenderingContext2D, unit: UnitToken) {
+const drawToken = (ctx: CanvasRenderingContext2D, unit: UnitToken) => {
   const c = center(hexKey(unit.pos))
   const s = hexSize
   const r = s * 0.55
@@ -378,7 +378,7 @@ function drawToken(ctx: CanvasRenderingContext2D, unit: UnitToken) {
   ctx.textBaseline = 'alphabetic'
 }
 
-function draw() {
+const draw = () => {
   const el = canvas.value
   if (!el || !terrainLayer) return
   const dpr = window.devicePixelRatio || 1
@@ -445,7 +445,7 @@ function draw() {
 }
 
 /** Fit the whole map inside the container width and the visible viewport height. */
-function relayout() {
+const relayout = () => {
   const el = canvas.value
   if (!el || !wrap.value) return
   const availW = wrap.value.clientWidth
@@ -468,13 +468,13 @@ function relayout() {
   draw()
 }
 
-function hexAt(e: PointerEvent): Hex | null {
+const hexAt = (e: PointerEvent): Hex | null => {
   const rect = canvas.value!.getBoundingClientRect()
   const h = pixelToHex({ x: e.clientX - rect.left - origin.x, y: e.clientY - rect.top - origin.y }, hexSize)
   return props.map.hexes.has(hexKey(h)) ? h : null
 }
 
-function onMove(e: PointerEvent) {
+const onMove = (e: PointerEvent) => {
   const h = hexAt(e)
   const key = h ? hexKey(h) : null
   if (key === hovered.value) return
@@ -483,13 +483,13 @@ function onMove(e: PointerEvent) {
   draw()
 }
 
-function onLeave() {
+const onLeave = () => {
   hovered.value = null
   emit('hover', null)
   draw()
 }
 
-function onClick(e: PointerEvent) {
+const onClick = (e: PointerEvent) => {
   const h = hexAt(e)
   if (h) emit('select', h)
 }

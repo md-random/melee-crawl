@@ -55,12 +55,12 @@ const LAYOUT = Object.entries(BRANCH_NAMES).map(([branch, name]) => {
 })
 
 /** Weapons a weapon talent lets you use. */
-function weaponsFor(talentId: string): string[] {
+const weaponsFor = (talentId: string): string[] => {
   return weapons().filter(w => w.talent === talentId).map(w => w.name)
 }
 
 /** Turns rule reasons into plain instructions. */
-export function explainReason(reason: string, canRaiseIQ: boolean): string {
+export const explainReason = (reason: string, canRaiseIQ: boolean): string => {
   const attr = reason.match(/^Needs (ST|DX|IQ) (\d+) \(have (\d+)\)$/)
   if (attr) {
     const [, key, min, have] = attr
@@ -79,7 +79,7 @@ export function explainReason(reason: string, canRaiseIQ: boolean): string {
  * Talent picking for the creator and the camp screen. Pure derivation: returns new
  * talent lists instead of mutating, so the owner keeps the state (props down, events up).
  */
-export function useTalents(opts: Options) {
+export const useTalents = (opts: Options) => {
   const attrs = computed(() => toValue(opts.attrs))
   const owned = computed(() => toValue(opts.owned))
   const cls = computed(() => toValue(opts.cls))
@@ -94,7 +94,7 @@ export function useTalents(opts: Options) {
   /** What one more rank costs: IQ, plus XP at camp. */
   const price = (iq: number) => (toValue(opts.xp) === undefined ? `${iq} IQ` : `${iq} IQ and ${PROGRESSION.talentXpCost} XP`)
 
-  function rowFor(r: { node: TalentNode; weaponTalent?: string; label: string }): TalentRow {
+  const rowFor = (r: { node: TalentNode; weaponTalent?: string; label: string }): TalentRow => {
     const { node, weaponTalent } = r
     const rank = rankOf(owned.value, node.id, weaponTalent)
     const check = canTakeTalent(node, ctx(), weaponTalent)
@@ -133,7 +133,7 @@ export function useTalents(opts: Options) {
   }
 
   /** One tile for a per-weapon talent, with a choice for each weapon talent known. */
-  function perWeaponRow(node: TalentNode): TalentRow {
+  const perWeaponRow = (node: TalentNode): TalentRow => {
     const weapons = WEAPON_TALENTS
       .filter(w => hasTalent(owned.value, w) || rankOf(owned.value, node.id, w) > 0)
       .map(w => rowFor({ node, weaponTalent: w, label: TALENTS[w]!.name }))
@@ -165,7 +165,7 @@ export function useTalents(opts: Options) {
   })))
 
   /** New talent list after clicking a tile: learn, next rank, or forget. */
-  function toggle(row: TalentRow): OwnedTalent[] {
+  const toggle = (row: TalentRow): OwnedTalent[] => {
     if (row.canAdd) return addTalent(owned.value, row.node.id, row.weaponTalent)
     if (row.rank > 0 && !isLocked(row.node.id, row.weaponTalent)) {
       return removeTalent(owned.value, row.node.id, row.weaponTalent, attrs.value, cls.value)
@@ -174,7 +174,7 @@ export function useTalents(opts: Options) {
   }
 
   /** Talents that still qualify, e.g. after lowering IQ. Locked talents always stay. */
-  function prune(): OwnedTalent[] {
+  const prune = (): OwnedTalent[] => {
     let kept: OwnedTalent[] = []
     for (const t of owned.value) {
       const node = TALENTS[t.id]
@@ -188,7 +188,7 @@ export function useTalents(opts: Options) {
   }
 
   /** Equipment note: whether a weapon or shield's talent is known, and how to get it. */
-  function talentNote(talentId: string, what: string): string {
+  const talentNote = (talentId: string, what: string): string => {
     const t = TALENTS[talentId]!
     if (hasTalent(owned.value, talentId)) return `You know ${t.name}, so no penalty.`
     const check = canTakeTalent(t, ctx())

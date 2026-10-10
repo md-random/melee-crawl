@@ -6,10 +6,24 @@ import { SCHEMA_VERSION } from '../types'
 // A save that can't be brought up to date is handed back as a backup,
 // never silently thrown away.
 
+type LooseItem = Record<string, unknown>
+
 interface LooseSave {
   schemaVersion: number
-  run?: { battle?: { units?: Record<string, Record<string, unknown>> } }
+  run?: {
+    character?: { inventory?: LooseItem[] }
+    battle?: { units?: Record<string, Record<string, unknown>> }
+    shop?: { stock?: unknown[] }
+  }
   [key: string]: unknown
+}
+
+const gradeItems = (items: unknown) => {
+  if (!Array.isArray(items)) return
+  for (const item of items as LooseItem[]) {
+    if (typeof item.grade !== 'string') item.grade = 'ordinary'
+    if (!Array.isArray(item.traits)) item.traits = []
+  }
 }
 
 const MIGRATIONS: Record<number, (save: LooseSave) => LooseSave> = {
@@ -17,6 +31,17 @@ const MIGRATIONS: Record<number, (save: LooseSave) => LooseSave> = {
   1: save => {
     for (const unit of Object.values(save.run?.battle?.units ?? {})) {
       if (!Array.isArray(unit.traits)) unit.traits = []
+    }
+    return save
+  },
+  2: save => {
+    gradeItems(save.run?.character?.inventory)
+    for (const unit of Object.values(save.run?.battle?.units ?? {})) gradeItems(unit.inventory)
+    const shop = save.run?.shop
+    if (shop && Array.isArray(shop.stock)) {
+      shop.stock = shop.stock.map((entry, i) =>
+        typeof entry === 'string' ? { uid: `shop-migrated-${i}`, defId: entry, grade: 'ordinary', traits: [] } : entry
+      )
     }
     return save
   }
@@ -28,11 +53,11 @@ export interface LoadResult {
   backup?: string
 }
 
-function isLooseSave(data: unknown): data is LooseSave {
+const isLooseSave = (data: unknown): data is LooseSave => {
   return typeof data === 'object' && data !== null && typeof (data as { schemaVersion?: unknown }).schemaVersion === 'number'
 }
 
-export function loadSave(raw: string | null, empty: () => SaveFile): LoadResult {
+export const loadSave = (raw: string | null, empty: () => SaveFile): LoadResult => {
   if (!raw) return { save: empty() }
   let data: unknown
   try {

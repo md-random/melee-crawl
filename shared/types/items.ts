@@ -4,6 +4,26 @@ import type { EffectDef } from './effects'
 export type ItemKind = 'weapon' | 'armor' | 'shield' | 'potion' | 'scroll' | 'misc'
 export type EquipSlot = 'mainHand' | 'offHand' | 'body' | 'belt'
 
+export type GradeId = 'ordinary' | 'cool' | 'bitchin' | 'righteous'
+
+export interface GradeDef {
+  id: GradeId
+  name: string
+  rank: number
+  color: string
+  traitSlots: number
+}
+
+export type ItemTraitType = 'element' | 'attribute' | 'movement' | 'attack' | 'defense'
+
+export interface ItemTraitDef {
+  id: Id
+  name: string
+  type: ItemTraitType
+  appliesTo: ItemKind[]
+  description: string
+}
+
 interface ItemBase {
   id: Id
   name: string
@@ -52,6 +72,8 @@ export type ItemDef = WeaponDef | ArmorDef | ShieldDef | ConsumableDef
 export interface ItemInstance {
   uid: Id
   defId: Id
+  grade: GradeId
+  traits: Id[]
   charges?: number
 }
 

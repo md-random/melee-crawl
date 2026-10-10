@@ -11,6 +11,7 @@ import {
 } from './combat'
 import { applyEffect, areaHexes } from './effects'
 import { ev } from './events'
+import { defOf, itemName } from './items'
 
 // Every combat choice as an ActionDef. Spells and consumables are generic
 // actions over data (SpellDef, ConsumableDef), so new ones need no code here.
@@ -20,7 +21,7 @@ const NONE: ActionEstimate = { hitChance: 0, damage: 0, kill: 0, heal: 0, protec
 const plain = (id: Id) => (): ChosenAction[] => [{ actionId: id }]
 
 /** Moving more than half MA rules out full options. */
-function movedTooFar(ctx: ActionContext): string | undefined {
+const movedTooFar = (ctx: ActionContext): string | undefined => {
   const moved = ctx.actor.turn.hexesMoved
   const half = halfMove(ctx.actor)
   return moved > half ? `You moved ${moved} hexes; this needs ${half} or fewer (half your MA).` : undefined
@@ -29,13 +30,13 @@ function movedTooFar(ctx: ActionContext): string | undefined {
 const DISENGAGED = 'You left an enemy\'s front hexes this turn (disengaged), so you can\'t do this until next turn.'
 
 /** Builds an action whose yes/no check always matches its reason. */
-function action(def: Omit<ActionDef, 'isAvailable'>): ActionDef {
+const action = (def: Omit<ActionDef, 'isAvailable'>): ActionDef => {
   return { ...def, isAvailable: ctx => !def.unavailable(ctx) }
 }
 const sum = (dice: number[]) => dice.reduce((a, b) => a + b, 0)
 
 /** Resolves a target id: unit uids have no comma, hex keys do. */
-export function toTarget(state: BattleState, t: Id | HexKey): ActionTarget {
+export const toTarget = (state: BattleState, t: Id | HexKey): ActionTarget => {
   if (t.includes(',')) return { hex: fromKey(t as HexKey) }
   const u = state.units[t]
   return u ? { unit: u.uid, hex: u.pos } : {}
@@ -120,7 +121,7 @@ const attack = action({
 })
 
 /** 17 drops the weapon, 18 breaks it. Natural weapons can't be lost. */
-function loseWeapon(state: BattleState, u: Unit, how: 'drop' | 'fumble'): GameEvent[] {
+const loseWeapon = (state: BattleState, u: Unit, how: 'drop' | 'fumble'): GameEvent[] => {
   const uid = u.readyWeapon
   if (!uid || !u.inventory.some(i => i.uid === uid)) return []
   u.readyWeapon = undefined
@@ -134,7 +135,7 @@ function loseWeapon(state: BattleState, u: Unit, how: 'drop' | 'fumble'): GameEv
 // ---------- defend / dodge ----------
 
 /** Expected damage from enemies that could attack this unit next, and how much rolling one more die cuts it. */
-function protectionFrom(ctx: ActionContext, ranged: boolean): number {
+const protectionFrom = (ctx: ActionContext, ranged: boolean): number => {
   const { state, actor } = ctx
   let saved = 0
   for (const e of enemiesOf(state, actor)) {
@@ -153,7 +154,7 @@ function protectionFrom(ctx: ActionContext, ranged: boolean): number {
   return saved
 }
 
-function statusAction(id: 'defend' | 'dodge', label: string, icon: string, status: 'defending' | 'dodging', hint: string): ActionDef {
+const statusAction = (id: 'defend' | 'dodge', label: string, icon: string, status: 'defending' | 'dodging', hint: string): ActionDef => {
   const ranged = id === 'dodge'
   return action({
     id,
@@ -199,7 +200,7 @@ const readyWeapon = action({
     const inst = ctx.actor.inventory.find(i => i.uid === ctx.choice.itemUid)
     if (!inst) return []
     ctx.actor.readyWeapon = inst.uid
-    return [ev(ctx.state, { kind: 'narrate', text: `${ctx.actor.name} readies ${ITEMS[inst.defId]?.name ?? 'a weapon'}.` })]
+    return [ev(ctx.state, { kind: 'narrate', text: `${ctx.actor.name} readies ${defOf(inst) ? itemName(inst) : 'a weapon'}.` })]
   }
 })
 
@@ -223,7 +224,7 @@ const pass = action({
 // ---------- effects from data (spells, consumables) ----------
 
 /** Units a data-driven effect list would touch, and its expected value from the actor's side. */
-function estimateEffects(state: BattleState, actor: Unit, effects: EffectDef[], affected: Unit[]): ActionEstimate {
+const estimateEffects = (state: BattleState, actor: Unit, effects: EffectDef[], affected: Unit[]): ActionEstimate => {
   const out = { ...NONE, hitChance: 1 }
   for (const u of affected) {
     const enemy = u.side !== actor.side
@@ -248,7 +249,7 @@ function estimateEffects(state: BattleState, actor: Unit, effects: EffectDef[], 
   return out
 }
 
-function unitsInArea(state: BattleState, hexes: Hex[]): Unit[] {
+const unitsInArea = (state: BattleState, hexes: Hex[]): Unit[] => {
   const keys = new Set(hexes.map(hexKey))
   return livingUnits(state).filter(u => keys.has(hexKey(u.pos)))
 }
@@ -327,7 +328,7 @@ const castSpell: ActionDef = action({
   }
 })
 
-function consumableOf(actor: Unit, choice: ChosenAction): ConsumableDef | undefined {
+const consumableOf = (actor: Unit, choice: ChosenAction): ConsumableDef | undefined => {
   const inst = actor.inventory.find(i => i.uid === choice.itemUid)
   const def = inst ? ITEMS[inst.defId] : undefined
   return def && (def.kind === 'potion' || def.kind === 'scroll') ? def : undefined
@@ -388,37 +389,37 @@ export const ACTIONS: Record<Id, ActionDef> = Object.fromEntries([
 ].map(a => [a.id, a]))
 
 /** Choice key used in PendingInput: 'attack', 'castSpell:<spellId>', 'useItem:<itemUid>'. */
-export function choiceKey(c: ChosenAction): string {
+export const choiceKey = (c: ChosenAction): string => {
   const param = c.spellId ?? c.itemUid
   return param ? `${c.actionId}:${param}` : c.actionId
 }
 
-export function parseChoiceKey(key: string): ChosenAction {
+export const parseChoiceKey = (key: string): ChosenAction => {
   const [actionId, param] = key.split(':') as [Id, Id | undefined]
   if (!param) return { actionId }
   return actionId === 'castSpell' ? { actionId, spellId: param } : { actionId, itemUid: param }
 }
 
 /** Actions granted by talents or items (grantAction effects) that exist in the registry. */
-function grantedActions(u: Unit): ActionDef[] {
+const grantedActions = (u: Unit): ActionDef[] => {
   return u.effects
     .flatMap(e => (e.def.kind === 'grantAction' ? [ACTIONS[e.def.actionId]] : []))
     .filter((a): a is ActionDef => !!a)
 }
 
-export function contextFor(state: BattleState, actor: Unit, choice: ChosenAction, rng: ActionContext['rng']): ActionContext {
+export const contextFor = (state: BattleState, actor: Unit, choice: ChosenAction, rng: ActionContext['rng']): ActionContext => {
   return { state, actor, choice, rng }
 }
 
 const actionsFor = (actor: Unit) => [...new Set([...Object.values(ACTIONS), ...grantedActions(actor)])]
 
 /** Every concrete choice the unit can take now. Always includes 'pass'. */
-export function availableChoices(state: BattleState, actor: Unit, rng: ActionContext['rng']): ChosenAction[] {
+export const availableChoices = (state: BattleState, actor: Unit, rng: ActionContext['rng']): ChosenAction[] => {
   return actionsFor(actor).flatMap(def => def.choices(actor).filter(c => def.isAvailable(contextFor(state, actor, c, rng))))
 }
 
 /** Every choice the unit has, with the reason when it can't be taken now. For the action menu. */
-export function allChoices(state: BattleState, actor: Unit, rng: ActionContext['rng']): { choice: ChosenAction; def: ActionDef; reason?: string }[] {
+export const allChoices = (state: BattleState, actor: Unit, rng: ActionContext['rng']): { choice: ChosenAction; def: ActionDef; reason?: string }[] => {
   return actionsFor(actor).flatMap(def => def.choices(actor).map(choice => ({
     choice, def, reason: def.unavailable(contextFor(state, actor, choice, rng))
   })))

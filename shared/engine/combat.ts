@@ -7,6 +7,7 @@ import { generateMap } from './mapgen'
 import { lineOfSight, reachable, type Obstructions } from './pathfinding'
 import { adjustedDx, movementAllowance, type Loadout } from './rules'
 import { ev } from './events'
+import { itemName } from './items'
 
 // Combat math shared by actions, effects, the turn engine and the AI.
 
@@ -51,7 +52,7 @@ export const livingUnits = (s: BattleState) => Object.values(s.units).filter(isA
 export const enemiesOf = (s: BattleState, u: Unit) => livingUnits(s).filter(o => o.side !== u.side)
 export const alliesOf = (s: BattleState, u: Unit) => livingUnits(s).filter(o => o.side === u.side && o.uid !== u.uid)
 
-export function unitLoadout(u: Unit): Loadout {
+export const unitLoadout = (u: Unit): Loadout => {
   const def = (uid?: Id) => {
     const inst = u.inventory.find(i => i.uid === uid)
     return inst ? ITEMS[inst.defId] : undefined
@@ -66,12 +67,14 @@ export function unitLoadout(u: Unit): Loadout {
   }
 }
 
-export function readyAttack(u: Unit): Attack | undefined {
+export const readyAttack = (u: Unit): Attack | undefined => {
   const natural = u.naturalWeapons.find(w => w.name === u.readyWeapon)
   if (natural) return { name: natural.name, damage: natural.damage, kind: 'melee', range: 1 }
   const w = unitLoadout(u).weapon
   if (!w) return undefined
-  return { name: w.name, damage: w.damage, kind: w.attackKind, range: w.range ?? 1, talent: w.talent, itemUid: u.readyWeapon }
+  const inst = u.inventory.find(i => i.uid === u.readyWeapon)
+  const name = inst ? itemName(inst, w) : w.name
+  return { name, damage: w.damage, kind: w.attackKind, range: w.range ?? 1, talent: w.talent, itemUid: u.readyWeapon }
 }
 
 // ---------- modifiers and derived stats ----------
@@ -82,7 +85,7 @@ export interface StatContext {
   attack?: Attack
 }
 
-function conditionMet(c: ModifierCondition | undefined, u: Unit, ctx?: StatContext): boolean {
+const conditionMet = (c: ModifierCondition | undefined, u: Unit, ctx?: StatContext): boolean => {
   if (!c) return true
   if ('weaponTalent' in c) return ctx?.attack?.talent === c.weaponTalent
   if ('attackKind' in c) return ctx?.attack?.kind === c.attackKind
@@ -95,7 +98,7 @@ function conditionMet(c: ModifierCondition | undefined, u: Unit, ctx?: StatConte
 }
 
 /** Sum of a unit's active modifiers to one stat, honoring conditions. */
-export function modifierTotal(u: Unit, stat: StatKey, ctx?: StatContext): number {
+export const modifierTotal = (u: Unit, stat: StatKey, ctx?: StatContext): number => {
   let sum = 0
   for (const e of u.effects) {
     if (e.def.kind !== 'modifier') continue
@@ -104,16 +107,16 @@ export function modifierTotal(u: Unit, stat: StatKey, ctx?: StatContext): number
   return sum
 }
 
-export function maOf(u: Unit): number {
+export const maOf = (u: Unit): number => {
   return Math.max(0, movementAllowance(u.base.MA + modifierTotal(u, 'MA'), unitLoadout(u)))
 }
 
-export function adjDxOf(u: Unit, ctx?: StatContext): number {
+export const adjDxOf = (u: Unit, ctx?: StatContext): number => {
   const attrs = { ST: u.base.ST, DX: u.base.DX + modifierTotal(u, 'DX', ctx), IQ: u.base.IQ }
   return adjustedDx(attrs, u.talents, unitLoadout(u)).value + modifierTotal(u, 'adjDX', ctx)
 }
 
-export function hitsStoppedOf(u: Unit): number {
+export const hitsStoppedOf = (u: Unit): number => {
   const gear = unitLoadout(u)
   return (gear.armor?.hitsStopped ?? 0) + (gear.shield?.hitsStopped ?? 0) + modifierTotal(u, 'hitsStopped')
 }
@@ -129,7 +132,7 @@ const DIR_ANGLES = DIRECTIONS.map(d => {
 })
 
 /** The facing that points most directly from a toward b. */
-export function directionTo(a: Hex, b: Hex): Facing {
+export const directionTo = (a: Hex, b: Hex): Facing => {
   const pa = hexToPixel(a, 1)
   const pb = hexToPixel(b, 1)
   const angle = Math.atan2(pb.y - pa.y, pb.x - pa.x)
@@ -147,7 +150,7 @@ export function directionTo(a: Hex, b: Hex): Facing {
 }
 
 /** Which arc of a figure at `pos` facing `facing` the hex `from` lies in: 3 front, 2 side, 1 rear hex. */
-export function arcOf(pos: Hex, facing: Facing, from: Hex): Arc {
+export const arcOf = (pos: Hex, facing: Facing, from: Hex): Arc => {
   const d = directionTo(pos, from)
   const diff = Math.min((d - facing + 6) % 6, (facing - d + 6) % 6)
   return diff <= 1 ? 'front' : diff === 2 ? 'side' : 'rear'
@@ -157,12 +160,12 @@ export function arcOf(pos: Hex, facing: Facing, from: Hex): Arc {
  * Engaged: next to a living enemy that has you in its front arc.
  * Reading of the 2019 rules not yet checked.
  */
-export function isEngagedAt(state: BattleState, u: Unit, pos: Hex): boolean {
+export const isEngagedAt = (state: BattleState, u: Unit, pos: Hex): boolean => {
   return enemiesOf(state, u).some(e => hexDistance(e.pos, pos) === 1 && arcOf(e.pos, e.facing, pos) === 'front')
 }
 
 /** Began the turn engaged and moved out of engagement: may not attack this turn. */
-export function hasDisengaged(state: BattleState, u: Unit): boolean {
+export const hasDisengaged = (state: BattleState, u: Unit): boolean => {
   return u.turn.startedEngaged && u.turn.hexesMoved > 0 && !isEngagedAt(state, u, u.pos)
 }
 
@@ -171,7 +174,7 @@ export function hasDisengaged(state: BattleState, u: Unit): boolean {
 const mapCache = new Map<string, GeneratedMap>()
 
 /** The battle's terrain, regenerated from its seed and cached. */
-export function mapOf(state: BattleState): GeneratedMap {
+export const mapOf = (state: BattleState): GeneratedMap => {
   const m = state.map
   const key = `${m.seed}:${m.biome}:${m.width}:${m.height}`
   let map = mapCache.get(key)
@@ -183,13 +186,13 @@ export function mapOf(state: BattleState): GeneratedMap {
 }
 
 /** Other living units block movement and sight; the given uids are left out. */
-export function obstructions(state: BattleState, ...except: Id[]): Obstructions {
+export const obstructions = (state: BattleState, ...except: Id[]): Obstructions => {
   const occupied = new Set<HexKey>(livingUnits(state).filter(o => !except.includes(o.uid)).map(o => hexKey(o.pos)))
   return { occupied, overlays: state.map.overlays }
 }
 
 /** What blocks or stops a unit's movement: other units, and enemy front hexes, which engage and end movement. */
-export function movementObstructions(state: BattleState, u: Unit): Obstructions {
+export const movementObstructions = (state: BattleState, u: Unit): Obstructions => {
   const stops = new Set<HexKey>()
   for (const e of enemiesOf(state, u)) {
     for (const n of neighbors(e.pos)) if (arcOf(e.pos, e.facing, n) === 'front') stops.add(hexKey(n))
@@ -198,13 +201,13 @@ export function movementObstructions(state: BattleState, u: Unit): Obstructions 
 }
 
 /** Where a unit may move this turn, with the cost of each hex. Engaged units shift at most one hex. */
-export function movementOptions(state: BattleState, u: Unit): Map<HexKey, number> {
+export const movementOptions = (state: BattleState, u: Unit): Map<HexKey, number> => {
   const map = mapOf(state)
   if (isEngagedAt(state, u, u.pos)) return reachable(map, u.pos, COMBAT.engagedMove, obstructions(state, u.uid))
   return reachable(map, u.pos, maOf(u), movementObstructions(state, u))
 }
 
-export function canSee(state: BattleState, from: Unit, to: Hex, ...except: Id[]): boolean {
+export const canSee = (state: BattleState, from: Unit, to: Hex, ...except: Id[]): boolean => {
   return lineOfSight(mapOf(state), from.pos, to, obstructions(state, from.uid, ...except))
 }
 
@@ -213,7 +216,7 @@ export function canSee(state: BattleState, from: Unit, to: Hex, ...except: Id[])
 const sumCache = new Map<number, number[]>()
 
 /** Probability of each total of n six-sided dice, indexed by total. */
-export function diceDistribution(n: number): number[] {
+export const diceDistribution = (n: number): number[] => {
   let dist = sumCache.get(n)
   if (!dist) {
     dist = [1]
@@ -230,7 +233,7 @@ export function diceDistribution(n: number): number[] {
 }
 
 /** P(sum of n d6 ≤ t). */
-export function probAtMost(n: number, t: number): number {
+export const probAtMost = (n: number, t: number): number => {
   const dist = diceDistribution(n)
   let p = 0
   for (let s = 0; s <= Math.min(t, dist.length - 1); s++) p += dist[s]!
@@ -238,7 +241,7 @@ export function probAtMost(n: number, t: number): number {
 }
 
 /** Expected max(0, roll + mod − stopped), and the chance that value reaches `atLeast`. */
-export function damageOdds(d: DiceExpr, bonus: number, stopped: number, atLeast: number): { mean: number; reach: number } {
+export const damageOdds = (d: DiceExpr, bonus: number, stopped: number, atLeast: number): { mean: number; reach: number } => {
   const dist = diceDistribution(d.dice)
   let mean = 0
   let reach = 0
@@ -255,7 +258,7 @@ export function damageOdds(d: DiceExpr, bonus: number, stopped: number, atLeast:
 export interface RollPart { label: string; value: number }
 
 /** What the to-hit number is made of: adjusted DX, then position and range. */
-export function toHitParts(state: BattleState, attacker: Unit, target: Unit, attack: Attack): RollPart[] {
+export const toHitParts = (state: BattleState, attacker: Unit, target: Unit, attack: Attack): RollPart[] => {
   const ctx = { state, target, attack }
   const attrs = { ST: attacker.base.ST, DX: attacker.base.DX + modifierTotal(attacker, 'DX', ctx), IQ: attacker.base.IQ }
   const parts: RollPart[] = adjustedDx(attrs, attacker.talents, unitLoadout(attacker)).parts.map(p => ({ ...p }))
@@ -274,24 +277,24 @@ export function toHitParts(state: BattleState, attacker: Unit, target: Unit, att
 }
 
 /** Number to roll at or under on the attack dice. */
-export function toHitTarget(state: BattleState, attacker: Unit, target: Unit, attack: Attack): number {
+export const toHitTarget = (state: BattleState, attacker: Unit, target: Unit, attack: Attack): number => {
   return toHitParts(state, attacker, target, attack).reduce((s, p) => s + p.value, 0)
 }
 
-export function attackDice(target: Unit, attack: Attack): number {
+export const attackDice = (target: Unit, attack: Attack): number => {
   if (!isRanged(attack) && target.statuses.includes('defending')) return COMBAT.defendDice
   if (isRanged(attack) && target.statuses.includes('dodging')) return COMBAT.dodgeDice
   return 3
 }
 
 /** Chance to hit. On 3 dice, 3–4 always hit and 17–18 always miss. */
-export function hitChance(dice: number, target: number): number {
+export const hitChance = (dice: number, target: number): number => {
   if (dice === 3) return probAtMost(3, Math.min(16, Math.max(4, target)))
   return probAtMost(dice, target)
 }
 
 /** Enemies this attack can reach from the unit's current hex and facing. */
-export function attackTargets(state: BattleState, u: Unit, attack: Attack): Unit[] {
+export const attackTargets = (state: BattleState, u: Unit, attack: Attack): Unit[] => {
   return enemiesOf(state, u).filter(e => {
     if (arcOf(u.pos, u.facing, e.pos) !== 'front') return false
     const dist = hexDistance(u.pos, e.pos)
@@ -301,7 +304,7 @@ export function attackTargets(state: BattleState, u: Unit, attack: Attack): Unit
 }
 
 /** Expected result of one attack, for the AI and for previews. */
-export function attackOdds(state: BattleState, attacker: Unit, target: Unit, attack: Attack) {
+export const attackOdds = (state: BattleState, attacker: Unit, target: Unit, attack: Attack) => {
   const chance = hitChance(attackDice(target, attack), toHitTarget(state, attacker, target, attack))
   const bonus = modifierTotal(attacker, 'damage', { state, target, attack })
   const odds = damageOdds(attack.damage, bonus, hitsStoppedOf(target), target.stCurrent)
@@ -312,9 +315,9 @@ export function attackOdds(state: BattleState, attacker: Unit, target: Unit, att
  * Applies damage, emits the damage and any death event, and records the
  * hero's killer. Returns the ST actually lost.
  */
-export function dealDamage(
+export const dealDamage = (
   state: BattleState, target: Unit, raw: number, source: string, by?: Unit, ignoresArmor = false
-): { lost: number; events: GameEvent[] } {
+): { lost: number; events: GameEvent[] } => {
   const stopped = ignoresArmor ? 0 : Math.min(raw, hitsStoppedOf(target))
   const lost = Math.max(0, raw - stopped)
   const events: GameEvent[] = []
@@ -326,7 +329,7 @@ export function dealDamage(
   return { lost, events }
 }
 
-export function killUnit(state: BattleState, u: Unit, by?: Unit): GameEvent[] {
+export const killUnit = (state: BattleState, u: Unit, by?: Unit): GameEvent[] => {
   u.statuses = []
   if (u.origin.type === 'character' && by) {
     state.killedBy = { unitUid: by.uid, name: by.name, talents: by.talents.map(t => t.id) }

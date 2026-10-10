@@ -61,7 +61,7 @@ const unitOf = (uid: Id) => props.battle.units[uid]
 const isHero = (uid: Id) => props.battle.units[uid]?.side === 'player'
 const signed = (v: number) => (v >= 0 ? `+${v}` : `−${-v}`)
 
-function partsText(r?: Roll): string {
+const partsText = (r?: Roll): string => {
   if (!r?.parts?.length) return ''
   return r.parts.map((p, i) => (i === 0 ? `${p.label} ${p.value}` : `${p.label} ${signed(p.value)}`)).join(' ')
 }

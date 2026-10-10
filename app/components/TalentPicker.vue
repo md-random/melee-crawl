@@ -25,7 +25,7 @@ const { branches, iqSpent, iqLeft, toggle, prune } = useTalents({
   xp: () => props.xp
 })
 
-function onClick(row: TalentRow) {
+const onClick = (row: TalentRow) => {
   emit('update:modelValue', toggle(row))
 }
 

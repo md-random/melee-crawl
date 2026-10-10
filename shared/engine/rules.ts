@@ -4,19 +4,20 @@ import type {
 import { ITEMS } from '../data/items'
 import { BASE_MA, NO_TALENT_DX_PENALTY, PROGRESSION } from '../data/progression'
 import { TALENTS } from '../data/talents'
+import { newItem } from './items'
 
 // Character rules shared by the creator, the camp screen and the opponent generator.
 
-export function rankOf(owned: OwnedTalent[], id: Id, weaponTalent?: Id): number {
+export const rankOf = (owned: OwnedTalent[], id: Id, weaponTalent?: Id): number => {
   return owned.find(t => t.id === id && t.weaponTalent === weaponTalent)?.rank ?? 0
 }
 
-export function hasTalent(owned: OwnedTalent[], id: Id, rank = 1): boolean {
+export const hasTalent = (owned: OwnedTalent[], id: Id, rank = 1): boolean => {
   return owned.some(t => t.id === id && t.rank >= rank)
 }
 
 /** Human-readable reasons a requirement isn't met; empty when met. */
-export function missingRequirements(req: Requirement | undefined, attrs: Attributes, owned: OwnedTalent[]): string[] {
+export const missingRequirements = (req: Requirement | undefined, attrs: Attributes, owned: OwnedTalent[]): string[] => {
   if (!req) return []
   if ('all' in req) return req.all.flatMap(r => missingRequirements(r, attrs, owned))
   if ('any' in req) {
@@ -30,14 +31,14 @@ export function missingRequirements(req: Requirement | undefined, attrs: Attribu
 }
 
 /** IQ cost of one rank of a talent for this owner. */
-export function talentIqCost(node: TalentNode, owned: OwnedTalent[], cls: CharacterClass = 'hero'): number {
+export const talentIqCost = (node: TalentNode, owned: OwnedTalent[], cls: CharacterClass = 'hero'): number => {
   const override = node.costOverrides?.find(o => hasTalent(owned, o.ifHasTalent))
   const base = override ? override.iqCost : node.iqCost
   return cls === 'wizard' ? base * PROGRESSION.wizardTalentMultiplier : base
 }
 
 /** Total IQ committed to talents, in purchase order (so overrides apply as they did when bought). */
-export function iqUsed(owned: OwnedTalent[], cls: CharacterClass = 'hero'): number {
+export const iqUsed = (owned: OwnedTalent[], cls: CharacterClass = 'hero'): number => {
   let total = 0
   const before: OwnedTalent[] = []
   for (const t of owned) {
@@ -60,7 +61,7 @@ export interface TakeContext {
 }
 
 /** Whether the next rank of a talent can be taken now, with reasons if not. */
-export function canTakeTalent(node: TalentNode, ctx: TakeContext, weaponTalent?: Id): { ok: boolean; reasons: string[] } {
+export const canTakeTalent = (node: TalentNode, ctx: TakeContext, weaponTalent?: Id): { ok: boolean; reasons: string[] } => {
   const reasons: string[] = []
   if (node.for !== 'both' && node.for !== ctx.audience) reasons.push(`${ctx.audience === 'hero' ? 'Creature' : 'Hero'} only`)
   if (node.perWeapon) {
@@ -84,25 +85,25 @@ export function canTakeTalent(node: TalentNode, ctx: TakeContext, weaponTalent?:
 }
 
 /** Ranks in `after` that `before` didn't have: what camp charges XP for. */
-export function newTalentRanks(before: OwnedTalent[], after: OwnedTalent[]): number {
+export const newTalentRanks = (before: OwnedTalent[], after: OwnedTalent[]): number => {
   return after.reduce((n, t) => n + Math.max(0, t.rank - rankOf(before, t.id, t.weaponTalent)), 0)
 }
 
 /** Talents that would be removed along with this one. */
-export function dependentsOf(owned: OwnedTalent[], id: Id, weaponTalent: Id | undefined, attrs: Attributes, cls: CharacterClass = 'hero'): OwnedTalent[] {
+export const dependentsOf = (owned: OwnedTalent[], id: Id, weaponTalent: Id | undefined, attrs: Attributes, cls: CharacterClass = 'hero'): OwnedTalent[] => {
   const after = removeTalent(owned, id, weaponTalent, attrs, cls)
   return owned.filter(t => !(t.id === id && t.weaponTalent === weaponTalent) && !after.some(a => a.id === t.id && a.weaponTalent === t.weaponTalent))
 }
 
 /** Returns a new list with one more rank of the talent. */
-export function addTalent(owned: OwnedTalent[], id: Id, weaponTalent?: Id): OwnedTalent[] {
+export const addTalent = (owned: OwnedTalent[], id: Id, weaponTalent?: Id): OwnedTalent[] => {
   const i = owned.findIndex(t => t.id === id && t.weaponTalent === weaponTalent)
   if (i === -1) return [...owned, { id, rank: 1, ...(weaponTalent ? { weaponTalent } : {}) }]
   return owned.map((t, j) => (j === i ? { ...t, rank: t.rank + 1 } : t))
 }
 
 /** Removes one rank, and anything that no longer qualifies afterwards. */
-export function removeTalent(owned: OwnedTalent[], id: Id, weaponTalent: Id | undefined, attrs: Attributes, cls: CharacterClass = 'hero'): OwnedTalent[] {
+export const removeTalent = (owned: OwnedTalent[], id: Id, weaponTalent: Id | undefined, attrs: Attributes, cls: CharacterClass = 'hero'): OwnedTalent[] => {
   let next = owned
     .map(t => (t.id === id && t.weaponTalent === weaponTalent ? { ...t, rank: t.rank - 1 } : t))
     .filter(t => t.rank > 0)
@@ -136,7 +137,7 @@ export interface Loadout {
 export interface DxPart { label: string; value: number }
 
 /** adj DX with its breakdown, e.g. DX 13 − 2 leather − 4 no talent. */
-export function adjustedDx(attrs: Attributes, owned: OwnedTalent[], gear: Loadout): { value: number; parts: DxPart[] } {
+export const adjustedDx = (attrs: Attributes, owned: OwnedTalent[], gear: Loadout): { value: number; parts: DxPart[] } => {
   const parts: DxPart[] = [{ label: 'DX', value: attrs.DX }]
   if (gear.armor?.dxPenalty) parts.push({ label: gear.armor.name, value: -gear.armor.dxPenalty })
   if (gear.shield?.dxPenalty) parts.push({ label: gear.shield.name, value: -gear.shield.dxPenalty })
@@ -147,12 +148,12 @@ export function adjustedDx(attrs: Attributes, owned: OwnedTalent[], gear: Loadou
   return { value: parts.reduce((s, p) => s + p.value, 0), parts }
 }
 
-export function movementAllowance(baseMA: number, gear: Loadout): number {
+export const movementAllowance = (baseMA: number, gear: Loadout): number => {
   return gear.armor ? Math.min(baseMA, gear.armor.maxMA) : baseMA
 }
 
 /** Problems with a loadout for these attributes and talents; empty when valid. */
-export function loadoutProblems(attrs: Attributes, gear: Loadout, owned: OwnedTalent[] = []): string[] {
+export const loadoutProblems = (attrs: Attributes, gear: Loadout, owned: OwnedTalent[] = []): string[] => {
   const out: string[] = []
   if (gear.weapon && attrs.ST < gear.weapon.minST) out.push(`${gear.weapon.name} needs ST ${gear.weapon.minST}`)
   if (gear.weapon?.hands === 2 && gear.shield) out.push(`${gear.weapon.name} is two-handed; no shield`)
@@ -168,7 +169,7 @@ export function loadoutProblems(attrs: Attributes, gear: Loadout, owned: OwnedTa
   return out
 }
 
-export function loadoutOf(c: Pick<Character, 'inventory' | 'equipped'>): Loadout {
+export const loadoutOf = (c: Pick<Character, 'inventory' | 'equipped'>): Loadout => {
   const def = (uid?: Id) => {
     const inst = c.inventory.find(i => i.uid === uid)
     return inst ? ITEMS[inst.defId] : undefined
@@ -197,11 +198,11 @@ export interface CreationInput {
   shieldId?: Id
 }
 
-export function attrPointsLeft(attrs: Attributes): number {
+export const attrPointsLeft = (attrs: Attributes): number => {
   return PROGRESSION.startingAttrPoints - attrs.ST - attrs.DX - attrs.IQ
 }
 
-export function creationProblems(input: CreationInput): string[] {
+export const creationProblems = (input: CreationInput): string[] => {
   const out: string[] = []
   if (!input.name.trim()) out.push('Name your character')
   for (const k of ['ST', 'DX', 'IQ'] as const) {
@@ -227,13 +228,13 @@ export function creationProblems(input: CreationInput): string[] {
 }
 
 /** Builds a new level-0 hero. Call only when creationProblems() is empty. */
-export function createCharacter(input: CreationInput, newId: () => Id): Character {
+export const createCharacter = (input: CreationInput, newId: () => Id): Character => {
   // One instance per slot, so two of the same weapon get separate uids.
   const slots = { mainHand: input.weaponId, offHand: input.offWeaponId ?? input.shieldId, body: input.armorId }
   const uids = Object.fromEntries(Object.entries(slots).map(([slot, defId]) => [slot, defId ? newId() : undefined]))
   const inventory = Object.entries(slots)
     .filter(([, defId]) => !!defId)
-    .map(([slot, defId]) => ({ uid: uids[slot]!, defId: defId! }))
+    .map(([slot, defId]) => newItem(uids[slot]!, defId!))
   return {
     id: newId(),
     name: input.name.trim(),
@@ -255,19 +256,19 @@ export function createCharacter(input: CreationInput, newId: () => Id): Characte
 // ---------- progression ----------
 
 /** Attribute total (ST + DX + IQ) the XP table allows for this much XP earned. */
-export function attrTotalFor(xpEarned: number): number {
+export const attrTotalFor = (xpEarned: number): number => {
   let total = PROGRESSION.startingAttrPoints
   for (const row of PROGRESSION.attrXpTable) if (xpEarned >= row.totalXp) total = row.attrTotal
   return total
 }
 
 /** The next row of the XP table not yet reached, if any. */
-export function nextAttrStep(xpEarned: number): { totalXp: number; attrTotal: number } | undefined {
+export const nextAttrStep = (xpEarned: number): { totalXp: number; attrTotal: number } | undefined => {
   return PROGRESSION.attrXpTable.find(row => row.totalXp > xpEarned)
 }
 
 /** Level shown in UI and used by matchmaking: attribute points above the starting 32. */
-export function levelOf(attrs: Attributes): number {
+export const levelOf = (attrs: Attributes): number => {
   return attrs.ST + attrs.DX + attrs.IQ - PROGRESSION.startingAttrPoints
 }
 

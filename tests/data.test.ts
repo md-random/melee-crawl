@@ -5,7 +5,7 @@ import { ITEMS } from '#shared/data/items'
 import { TALENTS } from '#shared/data/talents'
 import { TRAITS } from '#shared/data/traits'
 
-function talentRefs(req?: Requirement): string[] {
+const talentRefs = (req?: Requirement): string[] => {
   if (!req) return []
   if ('all' in req) return req.all.flatMap(talentRefs)
   if ('any' in req) return req.any.flatMap(talentRefs)

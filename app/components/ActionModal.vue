@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { BattleState, PendingInput, Unit } from '#shared/types'
-import { ITEMS } from '#shared/data/items'
 import { SPELLS } from '#shared/data/spells'
+import { defOf, itemName } from '#shared/engine/items'
 import { allChoices, ACTIONS, choiceKey, contextFor, toTarget } from '#shared/engine/actions'
 import { halfMove, isEngagedAt, maOf } from '#shared/engine/combat'
 import { createRng } from '#shared/utils/rng'
@@ -15,7 +15,7 @@ const emit = defineEmits<{ action: [key: string]; target: [id: string] }>()
 const dialog = ref<HTMLDialogElement>()
 const open = computed(() => !!props.unit && (props.pending?.kind === 'chooseAction' || props.pending?.kind === 'chooseTarget'))
 
-function sync() {
+const sync = () => {
   const d = dialog.value
   if (!d) return
   if (open.value && !d.open) d.showModal()
@@ -39,7 +39,7 @@ const actions = computed(() => {
   return allChoices(props.battle, u, scratchRng()).map(({ choice, def, reason }) => {
     const key = choiceKey(choice)
     const inst = choice.itemUid ? u.inventory.find(i => i.uid === choice.itemUid) : undefined
-    const extra = choice.spellId ? SPELLS[choice.spellId]?.name : inst ? ITEMS[inst.defId]?.name : undefined
+    const extra = choice.spellId ? SPELLS[choice.spellId]?.name : inst && defOf(inst) ? itemName(inst) : undefined
     return {
       key,
       icon: def.icon,

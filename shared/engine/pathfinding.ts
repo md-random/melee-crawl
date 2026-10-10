@@ -12,7 +12,7 @@ export interface Obstructions {
 }
 
 /** Cost to enter a hex, or null if it can't be entered. */
-export function enterCost(map: GeneratedMap, key: HexKey, obs: Obstructions = {}): number | null {
+export const enterCost = (map: GeneratedMap, key: HexKey, obs: Obstructions = {}): number | null => {
   const terrain = map.hexes.get(key)
   if (!terrain || !TERRAIN[terrain].passable || obs.occupied?.has(key)) return null
   const overlay = obs.overlays?.[key]
@@ -21,7 +21,7 @@ export function enterCost(map: GeneratedMap, key: HexKey, obs: Obstructions = {}
   return rule.passable ? TERRAIN[terrain].moveCost + rule.moveCost : null
 }
 
-export function blocksSight(map: GeneratedMap, key: HexKey, obs: Obstructions = {}): boolean {
+export const blocksSight = (map: GeneratedMap, key: HexKey, obs: Obstructions = {}): boolean => {
   const terrain = map.hexes.get(key)
   if (!terrain || TERRAIN[terrain].blocksLOS || obs.occupied?.has(key)) return true
   const overlay = obs.overlays?.[key]
@@ -29,14 +29,14 @@ export function blocksSight(map: GeneratedMap, key: HexKey, obs: Obstructions = 
 }
 
 /** Pops the cheapest entry. Maps are ~150 hexes, so a linear scan is fine. */
-function popMin(open: [HexKey, number][]): [HexKey, number] {
+const popMin = (open: [HexKey, number][]): [HexKey, number] => {
   let i = 0
   for (let j = 1; j < open.length; j++) if (open[j]![1] < open[i]![1]) i = j
   return open.splice(i, 1)[0]!
 }
 
 /** Every hex reachable within `ma` movement points, mapped to its cheapest cost. Includes the start hex. */
-export function reachable(map: GeneratedMap, from: Hex, ma: number, obs: Obstructions = {}): Map<HexKey, number> {
+export const reachable = (map: GeneratedMap, from: Hex, ma: number, obs: Obstructions = {}): Map<HexKey, number> => {
   const start = hexKey(from)
   const best = new Map<HexKey, number>([[start, 0]])
   const open: [HexKey, number][] = [[start, 0]]
@@ -58,7 +58,7 @@ export function reachable(map: GeneratedMap, from: Hex, ma: number, obs: Obstruc
 }
 
 /** Cheapest path (A*), both ends included, or null if the goal can't be reached. */
-export function findPath(map: GeneratedMap, from: Hex, to: Hex, obs: Obstructions = {}): Hex[] | null {
+export const findPath = (map: GeneratedMap, from: Hex, to: Hex, obs: Obstructions = {}): Hex[] | null => {
   const start = hexKey(from)
   const goal = hexKey(to)
   if (start === goal) return [from]
@@ -92,6 +92,6 @@ export function findPath(map: GeneratedMap, from: Hex, to: Hex, obs: Obstruction
 }
 
 /** True if no hex strictly between a and b blocks sight. */
-export function lineOfSight(map: GeneratedMap, a: Hex, b: Hex, obs: Obstructions = {}): boolean {
+export const lineOfSight = (map: GeneratedMap, a: Hex, b: Hex, obs: Obstructions = {}): boolean => {
   return hexLine(a, b).slice(1, -1).every(h => !blocksSight(map, hexKey(h), obs))
 }

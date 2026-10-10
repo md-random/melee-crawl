@@ -14,7 +14,7 @@ export const DIRECTIONS: readonly Hex[] = [
 
 export const hexKey = (h: Hex): HexKey => `${h.q},${h.r}`
 
-export function fromKey(key: HexKey): Hex {
+export const fromKey = (key: HexKey): Hex => {
   const [q, r] = key.split(',').map(Number)
   return { q: q!, r: r! }
 }
@@ -24,13 +24,13 @@ export const hexAdd = (a: Hex, b: Hex): Hex => ({ q: a.q + b.q, r: a.r + b.r })
 export const neighbor = (h: Hex, dir: Facing): Hex => hexAdd(h, DIRECTIONS[dir]!)
 export const neighbors = (h: Hex): Hex[] => DIRECTIONS.map(d => hexAdd(h, d))
 
-export function hexDistance(a: Hex, b: Hex): number {
+export const hexDistance = (a: Hex, b: Hex): number => {
   const dq = a.q - b.q
   const dr = a.r - b.r
   return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2
 }
 
-function hexRound(q: number, r: number): Hex {
+const hexRound = (q: number, r: number): Hex => {
   const s = -q - r
   let rq = Math.round(q)
   let rr = Math.round(r)
@@ -45,7 +45,7 @@ function hexRound(q: number, r: number): Hex {
 }
 
 /** Hexes on the straight line from a to b, inclusive. Used for line of sight. */
-export function hexLine(a: Hex, b: Hex): Hex[] {
+export const hexLine = (a: Hex, b: Hex): Hex[] => {
   const n = hexDistance(a, b)
   if (n === 0) return [a]
   // nudge avoids ties on hex edges
@@ -65,7 +65,7 @@ export const offsetToHex = (col: number, row: number): Hex => ({ q: col, r: row 
 export const hexToOffset = (h: Hex) => ({ col: h.q, row: h.r + Math.floor(h.q / 2) })
 
 /** All hexes of a width × height rectangle (even-q layout). */
-export function rectangle(width: number, height: number): Hex[] {
+export const rectangle = (width: number, height: number): Hex[] => {
   const out: Hex[] = []
   for (let col = 0; col < width; col++) {
     for (let row = 0; row < height; row++) out.push(offsetToHex(col, row))
@@ -79,17 +79,17 @@ const SQRT3 = Math.sqrt(3)
 
 export interface Point { x: number; y: number }
 
-export function hexToPixel(h: Hex, size: number): Point {
+export const hexToPixel = (h: Hex, size: number): Point => {
   return { x: size * 1.5 * h.q, y: size * SQRT3 * (h.r + h.q / 2) }
 }
 
-export function pixelToHex(p: Point, size: number): Hex {
+export const pixelToHex = (p: Point, size: number): Hex => {
   const q = (2 / 3) * p.x / size
   const r = (-p.x / 3 + (SQRT3 / 3) * p.y) / size
   return hexRound(q, r)
 }
 
-export function hexCorners(center: Point, size: number): Point[] {
+export const hexCorners = (center: Point, size: number): Point[] => {
   return Array.from({ length: 6 }, (_, i) => {
     const a = (Math.PI / 3) * i
     return { x: center.x + size * Math.cos(a), y: center.y + size * Math.sin(a) }

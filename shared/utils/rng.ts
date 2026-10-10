@@ -14,7 +14,7 @@ export interface SeededRng extends Rng {
   pick<T>(items: readonly T[]): T
 }
 
-function splitmix32(x: number): number {
+const splitmix32 = (x: number): number => {
   let z = (x + 0x9e3779b9) | 0
   z = Math.imul(z ^ (z >>> 16), 0x21f0aaad)
   z = Math.imul(z ^ (z >>> 15), 0x735a2d97)
@@ -22,7 +22,7 @@ function splitmix32(x: number): number {
 }
 
 /** Mutates `state.calls`, so passing a stored state keeps it in sync. */
-export function createRng(state: RngState): SeededRng {
+export const createRng = (state: RngState): SeededRng => {
   const next = () => {
     const v = splitmix32((state.seed + Math.imul(state.calls, 0x9e3779b9)) | 0)
     state.calls++
@@ -42,6 +42,6 @@ export function createRng(state: RngState): SeededRng {
   }
 }
 
-export function randomSeed(): number {
+export const randomSeed = (): number => {
   return Math.floor(Math.random() * 2 ** 31)
 }

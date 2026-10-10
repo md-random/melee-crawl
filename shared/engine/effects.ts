@@ -14,14 +14,14 @@ const rollDice = (rng: Rng, d: { dice: number; mod: number }) =>
   Math.max(0, rng.roll(d.dice).reduce((a, b) => a + b, 0) + d.mod)
 
 /** Rounds an effect lasts; undefined means it doesn't run out by itself. */
-function roundsFor(d: Duration): number | undefined {
+const roundsFor = (d: Duration): number | undefined => {
   if (d.type === 'rounds') return d.rounds
   if (d.type === 'maintained') return d.maxRounds
   return undefined
 }
 
 /** Hexes covered by an area centred on `center`; lines run from `origin` through it. */
-export function areaHexes(state: BattleState, area: AreaShape, center: Hex, origin?: Hex): Hex[] {
+export const areaHexes = (state: BattleState, area: AreaShape, center: Hex, origin?: Hex): Hex[] => {
   if (area.type === 'single') return [center]
   if (area.type === 'radius') {
     return rectangle(state.map.width, state.map.height).filter(h => hexDistance(h, center) <= area.radius)
@@ -40,7 +40,7 @@ export interface ApplyOptions {
 }
 
 /** Applies one effect definition to one unit (or hex, for terrain). */
-export function applyEffect(state: BattleState, def: EffectDef, source: EffectSource, opts: ApplyOptions, rng: Rng): GameEvent[] {
+export const applyEffect = (state: BattleState, def: EffectDef, source: EffectSource, opts: ApplyOptions, rng: Rng): GameEvent[] => {
   const { target, by } = opts
   switch (def.kind) {
     case 'damage': {
@@ -79,7 +79,7 @@ export function applyEffect(state: BattleState, def: EffectDef, source: EffectSo
   }
 }
 
-function addUnitEffect(state: BattleState, target: Unit, def: EffectDef, source: EffectSource, by?: Unit): GameEvent[] {
+const addUnitEffect = (state: BattleState, target: Unit, def: EffectDef, source: EffectSource, by?: Unit): GameEvent[] => {
   const events: GameEvent[] = []
   if (def.kind === 'modifier') {
     const same = target.effects.filter(e => e.source.id === source.id && e.def.kind === 'modifier')
@@ -115,7 +115,7 @@ function addUnitEffect(state: BattleState, target: Unit, def: EffectDef, source:
   return events
 }
 
-export function removeEffect(state: BattleState, u: Unit, e: ActiveEffect, reason: 'expired' | 'dispelled' | 'ownerDied'): GameEvent[] {
+export const removeEffect = (state: BattleState, u: Unit, e: ActiveEffect, reason: 'expired' | 'dispelled' | 'ownerDied'): GameEvent[] => {
   u.effects = u.effects.filter(x => x.uid !== e.uid)
   const events = [ev(state, { kind: 'effectRemoved', effectUid: e.uid, reason })]
   if (e.def.kind === 'status') {
@@ -128,7 +128,7 @@ export function removeEffect(state: BattleState, u: Unit, e: ActiveEffect, reaso
   return events
 }
 
-function removeFieldEffect(state: BattleState, e: ActiveEffect, reason: 'expired' | 'dispelled' | 'ownerDied'): GameEvent[] {
+const removeFieldEffect = (state: BattleState, e: ActiveEffect, reason: 'expired' | 'dispelled' | 'ownerDied'): GameEvent[] => {
   state.fieldEffects = state.fieldEffects.filter(x => x.uid !== e.uid)
   state.map.overlays = Object.fromEntries(Object.entries(state.map.overlays).filter(([, o]) => o.effectUid !== e.uid))
   return [ev(state, { kind: 'effectRemoved', effectUid: e.uid, reason })]
@@ -138,7 +138,7 @@ function removeFieldEffect(state: BattleState, e: ActiveEffect, reason: 'expired
  * End of turn: poison and other ticking damage, maintained-spell upkeep,
  * then durations count down and expired effects drop.
  */
-export function tickEffects(state: BattleState, rng: Rng): GameEvent[] {
+export const tickEffects = (state: BattleState, rng: Rng): GameEvent[] => {
   const events: GameEvent[] = []
   const owner = (id?: Id) => (id ? state.units[id] : undefined)
   // Maintained spells end when their caster dies.
@@ -172,14 +172,14 @@ export function tickEffects(state: BattleState, rng: Rng): GameEvent[] {
   return events
 }
 
-function durationOf(def: EffectDef): Duration | undefined {
+const durationOf = (def: EffectDef): Duration | undefined => {
   return def.kind === 'modifier' || def.kind === 'status' || def.kind === 'terrain' || def.kind === 'summon' ? def.duration : undefined
 }
 
 const isMaintained = (e: ActiveEffect) => durationOf(e.def)?.type === 'maintained'
 
 /** Maintained spells cost their caster ST every turn. */
-function payUpkeep(state: BattleState, e: ActiveEffect): GameEvent[] {
+const payUpkeep = (state: BattleState, e: ActiveEffect): GameEvent[] => {
   const d = durationOf(e.def)
   if (d?.type !== 'maintained' || !e.appliedBy) return []
   const caster = state.units[e.appliedBy]
@@ -191,12 +191,12 @@ function payUpkeep(state: BattleState, e: ActiveEffect): GameEvent[] {
  * Permanent effects a unit carries into battle from its talents or traits:
  * one per rank for stacking modifiers.
  */
-export function ownedEffects(
+export const ownedEffects = (
   unitUid: Id,
   owned: { id: Id; rank: number; weaponTalent?: Id }[],
   defs: Record<string, { name: string; effects: EffectDef[] }>,
   kind: 'talent' | 'trait'
-): ActiveEffect[] {
+): ActiveEffect[] => {
   const out: ActiveEffect[] = []
   for (const t of owned) {
     const def = defs[t.id]

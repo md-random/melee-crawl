@@ -81,7 +81,7 @@ const ARCHETYPE_LIST: Archetype[] = [
 
 export const ARCHETYPES: Record<string, Archetype> = Object.fromEntries(ARCHETYPE_LIST.map(a => [a.id, a]))
 
-export function archetypesFor(base: CreatureBase): Archetype[] {
+export const archetypesFor = (base: CreatureBase): Archetype[] => {
   return ARCHETYPE_LIST.filter(a =>
     a.appliesTo.baseIds?.includes(base.id) || a.appliesTo.tags?.some(t => base.tags.includes(t))
   )

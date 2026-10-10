@@ -11,6 +11,7 @@ import { ACTIONS, availableChoices, choiceKey, contextFor, parseChoiceKey, toTar
 import { chooseAction, chooseTarget, planTurn } from './ai'
 import { adjDxOf, isAlive, isEngagedAt, livingUnits, mapOf, modifierTotal, movementOptions } from './combat'
 import { ownedEffects, tickEffects } from './effects'
+import { newItem } from './items'
 import { ev } from './events'
 import { alignByGenus, buildOpponent } from './opponents'
 
@@ -22,7 +23,7 @@ const freshTurn = (): UnitTurn => ({ hexesMoved: 0, startedEngaged: false, done:
 
 // ---------- units ----------
 
-export function unitFromCharacter(c: Character, pos: Hex, facing: Facing, controller: Unit['controller'] = 'human'): Unit {
+export const unitFromCharacter = (c: Character, pos: Hex, facing: Facing, controller: Unit['controller'] = 'human'): Unit => {
   const uid = c.id
   return {
     uid,
@@ -50,7 +51,7 @@ export function unitFromCharacter(c: Character, pos: Hex, facing: Facing, contro
   }
 }
 
-export function unitFromOpponent(spec: OpponentSpec, uid: Id, pos: Hex, facing: Facing): Unit {
+export const unitFromOpponent = (spec: OpponentSpec, uid: Id, pos: Hex, facing: Facing): Unit => {
   const o = buildOpponent(spec)
   const base = CREATURES[spec.baseId]!
   const gear = [
@@ -58,7 +59,7 @@ export function unitFromOpponent(spec: OpponentSpec, uid: Id, pos: Hex, facing: 
     { slot: 'body', def: o.armor },
     { slot: 'offHand', def: o.shield }
   ] as const
-  const inventory = gear.flatMap(g => (g.def ? [{ uid: `${uid}-${g.slot}`, defId: g.def.id }] : []))
+  const inventory = gear.flatMap(g => (g.def ? [newItem(`${uid}-${g.slot}`, g.def.id)] : []))
   const has = (slot: string) => inventory.some(i => i.uid === `${uid}-${slot}`)
   const effects = [...ownedEffects(uid, o.talents, TALENTS, 'talent'), ...ownedEffects(uid, o.traits, TRAITS, 'trait')]
   if (base.naturalHitsStopped) {
@@ -118,7 +119,7 @@ export interface BattleInput {
 }
 
 /** Free hexes nearest the spawn zone, spawn hexes first. */
-function spawnHexes(state: BattleState, zone: HexKey[], count: number): Hex[] {
+const spawnHexes = (state: BattleState, zone: HexKey[], count: number): Hex[] => {
   const map = mapOf(state)
   const out: HexKey[] = []
   const seen = new Set<HexKey>()
@@ -134,7 +135,7 @@ function spawnHexes(state: BattleState, zone: HexKey[], count: number): Hex[] {
   return out.map(fromKey)
 }
 
-export function createBattle(input: BattleInput): BattleState {
+export const createBattle = (input: BattleInput): BattleState => {
   const state: BattleState = {
     id: input.id,
     battleNo: input.battleNo,
@@ -165,13 +166,13 @@ export function createBattle(input: BattleInput): BattleState {
 
 export const rngOf = (state: BattleState): SeededRng => createRng(state.rng)
 
-function setPhase(state: BattleState, phase: Phase, out: GameEvent[]) {
+const setPhase = (state: BattleState, phase: Phase, out: GameEvent[]) => {
   state.phase = phase
   out.push(ev(state, { kind: 'phase', phase }))
 }
 
 /** XP is the total of the opponents' XP values; gold is their gold dice, rolled with the battle's dice. */
-function victoryRewards(state: BattleState): { xp: number; gold: number } {
+const victoryRewards = (state: BattleState): { xp: number; gold: number } => {
   const rng = rngOf(state)
   let xp = 0
   let gold = 0
@@ -184,7 +185,7 @@ function victoryRewards(state: BattleState): { xp: number; gold: number } {
   return { xp: Math.round(xp), gold }
 }
 
-function checkEnd(state: BattleState, out: GameEvent[]): boolean {
+const checkEnd = (state: BattleState, out: GameEvent[]): boolean => {
   const alive = (side: Side) => livingUnits(state).some(u => u.side === side)
   if (!alive('enemy')) {
     state.rewards ??= victoryRewards(state)
@@ -198,7 +199,7 @@ function checkEnd(state: BattleState, out: GameEvent[]): boolean {
 }
 
 /** Each side rolls a die plus its best initiative bonus; the higher moves first. Rerolls ties. */
-function rollInitiative(state: BattleState, rng: SeededRng, out: GameEvent[]) {
+const rollInitiative = (state: BattleState, rng: SeededRng, out: GameEvent[]) => {
   const bonus = (side: Side) => Math.max(0, ...livingUnits(state).filter(u => u.side === side).map(u => modifierTotal(u, 'initiative')))
   for (;;) {
     const p = rng.roll(1)
@@ -214,40 +215,40 @@ function rollInitiative(state: BattleState, rng: SeededRng, out: GameEvent[]) {
   }
 }
 
-function sideQueue(state: BattleState): Id[] {
+const sideQueue = (state: BattleState): Id[] => {
   return state.moveOrder.flatMap(side => livingUnits(state).filter(u => u.side === side).map(u => u.uid))
 }
 
 /** Highest adjDX acts first; ties keep a stable order. */
-function actionQueue(state: BattleState): Id[] {
+const actionQueue = (state: BattleState): Id[] => {
   return livingUnits(state)
     .map(u => ({ uid: u.uid, dx: adjDxOf(u) }))
     .sort((a, b) => b.dx - a.dx || a.uid.localeCompare(b.uid))
     .map(x => x.uid)
 }
 
-function moveUnit(state: BattleState, u: Unit, to: Hex, cost: number, out: GameEvent[]) {
+const moveUnit = (state: BattleState, u: Unit, to: Hex, cost: number, out: GameEvent[]) => {
   if (hexKey(to) === hexKey(u.pos)) return
   out.push(ev(state, { kind: 'move', unit: u.uid, from: u.pos, to }))
   u.pos = to
   u.turn.hexesMoved = cost
 }
 
-function faceUnit(state: BattleState, u: Unit, facing: Facing, out: GameEvent[]) {
+const faceUnit = (state: BattleState, u: Unit, facing: Facing, out: GameEvent[]) => {
   if (facing === u.facing) return
   u.facing = facing
   out.push(ev(state, { kind: 'face', unit: u.uid, facing }))
 }
 
 /** Records a choice; 'select' actions (defend, dodge) take effect at once. */
-function selectAction(state: BattleState, u: Unit, key: string, rng: SeededRng, out: GameEvent[]) {
+const selectAction = (state: BattleState, u: Unit, key: string, rng: SeededRng, out: GameEvent[]) => {
   const choice = parseChoiceKey(key)
   const def = ACTIONS[choice.actionId]
   u.turn.action = choice
   if (def?.timing === 'select') out.push(...def.resolve(contextFor(state, u, choice, rng), {}))
 }
 
-function resolveAction(state: BattleState, u: Unit, target: Id | HexKey | undefined, rng: SeededRng, out: GameEvent[]) {
+const resolveAction = (state: BattleState, u: Unit, target: Id | HexKey | undefined, rng: SeededRng, out: GameEvent[]) => {
   const choice = u.turn.action ?? { actionId: 'pass' }
   const def = ACTIONS[choice.actionId]
   u.turn.done = true
@@ -256,7 +257,7 @@ function resolveAction(state: BattleState, u: Unit, target: Id | HexKey | undefi
 }
 
 /** Valid targets for a unit's chosen action at resolve time. */
-function currentTargets(state: BattleState, u: Unit, rng: SeededRng): (Id | HexKey)[] {
+const currentTargets = (state: BattleState, u: Unit, rng: SeededRng): (Id | HexKey)[] => {
   const choice = u.turn.action
   const def = choice ? ACTIONS[choice.actionId] : undefined
   if (!choice || !def || def.timing === 'select') return []
@@ -267,7 +268,7 @@ function currentTargets(state: BattleState, u: Unit, rng: SeededRng): (Id | HexK
  * Runs the battle forward until a human has to choose (state.pending)
  * or the battle ends. Returns everything that happened.
  */
-export function advance(state: BattleState): GameEvent[] {
+export const advance = (state: BattleState): GameEvent[] => {
   const out: GameEvent[] = []
   const rng = rngOf(state)
   for (let guard = 0; guard < 10000; guard++) {
@@ -367,7 +368,7 @@ export function advance(state: BattleState): GameEvent[] {
 }
 
 /** First living unit in the queue; dead ones are dropped. */
-function nextLiving(state: BattleState): Unit | undefined {
+const nextLiving = (state: BattleState): Unit | undefined => {
   while (state.queue.length) {
     const u = state.units[state.queue[0]!]
     if (u && isAlive(u)) return u
@@ -385,7 +386,7 @@ export type PlayerInput =
   | { kind: 'target'; target: Id | HexKey }
 
 /** Applies the human's answer to state.pending, then runs on. Throws on input that doesn't fit. */
-export function submit(state: BattleState, input: PlayerInput): GameEvent[] {
+export const submit = (state: BattleState, input: PlayerInput): GameEvent[] => {
   const p = state.pending
   if (!p) throw new Error('Nothing is waiting for input')
   const u = state.units[p.unitUid]

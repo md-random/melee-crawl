@@ -5,7 +5,7 @@ import { findPath, lineOfSight, reachable } from '#shared/engine/pathfinding'
 import { hexDistance, hexKey, neighbors, rectangle } from '#shared/utils/hex'
 
 /** Open 7×7 field with the given terrain overrides. */
-function field(overrides: Record<HexKey, Terrain> = {}): GeneratedMap {
+const field = (overrides: Record<HexKey, Terrain> = {}): GeneratedMap => {
   const hexes = new Map<HexKey, Terrain>(rectangle(7, 7).map(h => [hexKey(h), 'clear']))
   for (const [k, t] of Object.entries(overrides)) hexes.set(k, t)
   return { hexes, spawns: { player: [], enemy: [] } }

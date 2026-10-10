@@ -34,7 +34,7 @@ export const BIOMES: Record<Biome, BiomeProfile> = {
 }
 
 /** The biome for a battle seed; every biome is equally likely. */
-export function biomeFor(seed: number): Biome {
+export const biomeFor = (seed: number): Biome => {
   const all = Object.keys(BIOMES) as Biome[]
   return all[Math.abs(seed) % all.length]!
 }
@@ -47,7 +47,7 @@ export type MapParams = Pick<MapState, 'seed' | 'biome' | 'width' | 'height'>
  * Deterministic: the same params always produce the same map, so only
  * MapParams is saved. Retries with derived seeds until every spawn is reachable.
  */
-export function generateMap(params: MapParams): GeneratedMap & { attempts: number } {
+export const generateMap = (params: MapParams): GeneratedMap & { attempts: number } => {
   const spawns = spawnZones(params.width, params.height)
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const rng = createRng({ seed: (params.seed + attempt * 7919) | 0, calls: 0 })
@@ -60,7 +60,7 @@ export function generateMap(params: MapParams): GeneratedMap & { attempts: numbe
 }
 
 /** Three hexes on each short edge, centred vertically. */
-function spawnZones(width: number, height: number): Record<Side, HexKey[]> {
+const spawnZones = (width: number, height: number): Record<Side, HexKey[]> => {
   const mid = Math.floor(height / 2)
   const rows = [mid - 1, mid, mid + 1]
   return {
@@ -69,7 +69,7 @@ function spawnZones(width: number, height: number): Record<Side, HexKey[]> {
   }
 }
 
-function scatterObstacles(params: MapParams, spawns: Record<Side, HexKey[]>, rng: SeededRng): Map<HexKey, Terrain> {
+const scatterObstacles = (params: MapParams, spawns: Record<Side, HexKey[]>, rng: SeededRng): Map<HexKey, Terrain> => {
   const all = rectangle(params.width, params.height)
   const hexes = new Map<HexKey, Terrain>(all.map(h => [hexKey(h), 'clear']))
 
@@ -109,7 +109,7 @@ function scatterObstacles(params: MapParams, spawns: Record<Side, HexKey[]>, rng
 }
 
 /** Flood fill from the first player spawn; every spawn hex must be reachable on foot. */
-export function spawnsConnected(hexes: Map<HexKey, Terrain>, spawns: Record<Side, HexKey[]>): boolean {
+export const spawnsConnected = (hexes: Map<HexKey, Terrain>, spawns: Record<Side, HexKey[]>): boolean => {
   const start = spawns.player[0]
   if (!start) return false
   const seen = new Set<HexKey>([start])

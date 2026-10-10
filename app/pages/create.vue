@@ -66,7 +66,7 @@ const ma = computed(() => movementAllowance(BASE_MA, gear.value))
 const hitsStopped = computed(() => (gear.value.armor?.hitsStopped ?? 0) + (gear.value.shield?.hitsStopped ?? 0))
 
 /** Chance that 3d6 rolls ≤ target. */
-function hitChance(target: number): number {
+const hitChance = (target: number): number => {
   let n = 0
   for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) for (let c = 1; c <= 6; c++) if (a + b + c <= target) n++
   return Math.round((n / 216) * 100)
@@ -95,7 +95,7 @@ const input = computed(() => ({
 }))
 const problems = computed(() => creationProblems(input.value))
 
-function start() {
+const start = () => {
   if (problems.value.length) return
   game.startRun(createCharacter(input.value, () => crypto.randomUUID()))
   navigateTo('/')

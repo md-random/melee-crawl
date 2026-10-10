@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { toRaw } from 'vue'
 import type { Attributes, Character, GameEvent, OwnedTalent, SaveFile, Tombstone } from '#shared/types'
 import { SCHEMA_VERSION } from '#shared/types'
+import { GRADE_ORDER } from '#shared/data/grades'
 import { ITEMS } from '#shared/data/items'
 import { PROGRESSION } from '#shared/data/progression'
 import { TALENTS } from '#shared/data/talents'
@@ -24,7 +25,9 @@ export const TEST_BONUS_ATTR_POINTS = 10
 
 const TEST_EXTRA_WEAPONS = true
 
-function emptySave(): SaveFile {
+const TEST_GRADED_STOCK = true
+
+const emptySave = (): SaveFile => {
   return { schemaVersion: SCHEMA_VERSION, graveyard: [], settings: { animationSpeed: 1, logLimit: 2000 } }
 }
 
@@ -32,7 +35,7 @@ function emptySave(): SaveFile {
  * localStorage for now; swap these two functions for a backend later.
  * Old saves are migrated; one that can't be loaded is kept under a backup key.
  */
-function readSave(): SaveFile {
+const readSave = (): SaveFile => {
   try {
     const { save, backup } = loadSave(localStorage.getItem(KEY), emptySave)
     if (backup) localStorage.setItem(`${KEY}.backup-${Date.now()}`, backup)
@@ -42,7 +45,7 @@ function readSave(): SaveFile {
   }
 }
 
-function writeSave(save: SaveFile) {
+const writeSave = (save: SaveFile) => {
   try {
     localStorage.setItem(KEY, JSON.stringify(save))
   } catch {
@@ -154,8 +157,14 @@ export const useGameStore = defineStore('game', {
       const run = this.save.run
       if (!run || run.screen !== 'camp') return
       const weaponCount = TEST_EXTRA_WEAPONS ? 4 : 2
-      if (run.shop && run.shop.stock.filter(id => ITEMS[id]?.kind === 'weapon').length >= weaponCount) return
-      run.shop = { stock: shopStock(randomSeed(), { weapon: weaponCount }) }
+      const stock = run.shop?.stock ?? []
+      const enoughWeapons = stock.filter(i => ITEMS[i.defId]?.kind === 'weapon').length >= weaponCount
+      const needsGrades = TEST_GRADED_STOCK && stock.every(i => i.grade === 'ordinary')
+      if (run.shop && enoughWeapons && !needsGrades) return
+      const fresh = shopStock(randomSeed(), { weapon: weaponCount })
+      run.shop = {
+        stock: TEST_GRADED_STOCK ? fresh.map((item, i) => ({ ...item, grade: GRADE_ORDER[i % GRADE_ORDER.length]! })) : fresh
+      }
       writeSave(this.save)
     },
 
@@ -166,8 +175,7 @@ export const useGameStore = defineStore('game', {
       if (!run?.shop || !c || run.screen !== 'camp' || !actions.length) return
       const { state, error } = applyShop(
         { inventory: c.inventory, equipped: c.equipped, gold: c.gold, stock: run.shop.stock },
-        actions,
-        () => crypto.randomUUID()
+        actions
       )
       if (error) return
       const gear = loadoutOf(state)

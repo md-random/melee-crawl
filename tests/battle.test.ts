@@ -9,6 +9,7 @@ import {
   arcOf, attackTargets, hasDisengaged, isEngagedAt, mapOf, movementOptions, readyAttack, toHitTarget
 } from '#shared/engine/combat'
 import { applyEffect, tickEffects } from '#shared/engine/effects'
+import { newItem } from '#shared/engine/items'
 import { alignByGenus, buildOpponent } from '#shared/engine/opponents'
 import { addTalent, createCharacter } from '#shared/engine/rules'
 import { hexDistance, hexKey, neighbor, offsetToHex } from '#shared/utils/hex'
@@ -32,7 +33,7 @@ const fixedDice = (...seq: number[]): Rng => ({ roll: (count: number) => Array.f
 const CENTER = offsetToHex(7, 5)
 
 /** A battle whose middle 5 hexes across are open ground, with the units placed by hand. */
-function arena(character = hero(), opponents = [orc]): BattleState {
+const arena = (character = hero(), opponents = [orc]): BattleState => {
   for (let seed = 1; seed < 500; seed++) {
     const state = createBattle({ id: 'b', battleNo: 1, seed, character, opponents, biome: 'plains' })
     const map = mapOf(state)
@@ -47,7 +48,7 @@ function arena(character = hero(), opponents = [orc]): BattleState {
 
 const unitsOf = (s: BattleState) => ({ me: Object.values(s.units).find(u => u.side === 'player')!, foe: Object.values(s.units).find(u => u.side === 'enemy')! })
 
-function place(u: Unit, pos: Hex, facing: Facing) {
+const place = (u: Unit, pos: Hex, facing: Facing) => {
   u.pos = pos
   u.facing = facing
 }
@@ -140,7 +141,7 @@ describe('facing and engagement', () => {
 })
 
 describe('attacks', () => {
-  function faceOff() {
+  const faceOff = () => {
     const s = arena()
     const { me, foe } = unitsOf(s)
     place(foe, CENTER, 1)
@@ -267,7 +268,7 @@ describe('effects', () => {
     try {
       const s = arena()
       const { me } = unitsOf(s)
-      me.inventory.push({ uid: 'p1', defId: potion.id })
+      me.inventory.push(newItem('p1', potion.id))
       me.equipped.belt.push('p1')
       me.stCurrent -= 5
       const before = me.stCurrent
@@ -302,7 +303,7 @@ describe('AI', () => {
 })
 
 describe('turn engine', () => {
-  function runAiBattle(seed: number): { state: BattleState; events: GameEvent[] } {
+  const runAiBattle = (seed: number): { state: BattleState; events: GameEvent[] } => {
     const state = createBattle({
       id: 'b', battleNo: 1, seed, character: hero(), heroController: 'ai',
       opponents: [{ ...orc, seed }, { baseId: 'goblin', archetypeId: 'skirmisher', budget: orc.budget, seed: seed + 1 }],
@@ -367,7 +368,7 @@ describe('rewards', () => {
   const second = { ...orc, seed: 8 }
 
   /** A battle whose opponents are already dead, run to its result. */
-  function won(seed: number): BattleState {
+  const won = (seed: number): BattleState => {
     const state = createBattle({ id: 'b', battleNo: 1, seed, character: hero(), opponents: [orc, second], biome: 'plains' })
     for (const u of Object.values(state.units)) if (u.side === 'enemy') u.stCurrent = 0
     advance(state)

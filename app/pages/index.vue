@@ -22,7 +22,7 @@ if (!game.character) await navigateTo('/create')
 else if (inCamp) await navigateTo('/camp')
 
 const events = ref<GameEvent[]>([])
-function record(list: GameEvent[]) {
+const record = (list: GameEvent[]) => {
   events.value.push(...list)
   const limit = game.save.settings.logLimit
   if (events.value.length > limit) events.value.splice(0, events.value.length - limit)
@@ -39,7 +39,7 @@ const pending = computed(() => battle.value?.pending)
 const active = computed(() => (pending.value && battle.value ? battle.value.units[pending.value.unitUid] : undefined))
 
 const error = ref('')
-function send(input: PlayerInput) {
+const send = (input: PlayerInput) => {
   error.value = ''
   try {
     record(game.act(input))
@@ -52,17 +52,17 @@ function send(input: PlayerInput) {
 
 const dmg = (d: DiceExpr) => `${d.dice}d${d.mod ? (d.mod > 0 ? `+${d.mod}` : d.mod) : ''}`
 
-function attackText(u: Unit): string {
+const attackText = (u: Unit): string => {
   const a = readyAttack(u)
   return a ? `${a.name} ${dmg(a.damage)}${a.range > 1 ? `, range ${a.range}` : ''}` : 'No weapon ready'
 }
 
-function dxParts(u: Unit): string {
+const dxParts = (u: Unit): string => {
   const parts = adjustedDx({ ST: u.base.ST, DX: u.base.DX, IQ: u.base.IQ }, u.talents, unitLoadout(u)).parts
   return parts.map(p => `${p.label} ${p.value}`).join('\n')
 }
 
-function archetypeText(u: Unit): string {
+const archetypeText = (u: Unit): string => {
   if (u.origin.type !== 'opponent') return ''
   const arch = ARCHETYPES[u.origin.spec.archetypeId]
   return arch ? `${arch.name} · ${u.aiProfile ?? ''} AI` : ''
@@ -131,7 +131,7 @@ const sight = computed(() => {
   return { from: from.pos, to, clear: lineOfSight(mapOf(b), from.pos, to, obs) }
 })
 
-function onSelect(h: Hex) {
+const onSelect = (h: Hex) => {
   const p = pending.value
   const u = active.value
   if (!p || !u) return
@@ -165,17 +165,17 @@ const killerName = computed(() => {
 
 // ---------- end of battle ----------
 
-function toCamp() {
+const toCamp = () => {
   game.finishVictory()
   navigateTo('/camp')
 }
 
-function toGraveyard() {
+const toGraveyard = () => {
   game.recordDeath()
   navigateTo('/create')
 }
 
-function abandon() {
+const abandon = () => {
   if (!hero.value || !confirm(`Abandon ${hero.value.name}? This is permanent: they go to the graveyard as abandoned.`)) return
   game.abandonRun()
   navigateTo('/create')

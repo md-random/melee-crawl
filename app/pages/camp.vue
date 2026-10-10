@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { Attributes, ConsumableDef, ItemDef, ItemKind, OwnedTalent } from '#shared/types'
-import { ITEMS } from '#shared/data/items'
+import type { Attributes, ConsumableDef, GradeId, ItemDef, ItemInstance, ItemKind, OwnedTalent } from '#shared/types'
 import { NO_TALENT_DX_PENALTY, PROGRESSION } from '#shared/data/progression'
 import { TALENTS } from '#shared/data/talents'
+import { defOf, gradeOf, itemName } from '#shared/engine/items'
+import { comparePower, withItem } from '#shared/engine/power'
 import {
   attrTotalFor, hasTalent, loadoutOf, loadoutProblems, newTalentRanks, nextAttrStep, rankOf
 } from '#shared/engine/rules'
@@ -62,7 +63,7 @@ const tab = ref<'talents' | 'shop'>('talents')
 /** Buys and sells so far this visit; saved on Next battle, Undo takes back the last. */
 const actions = ref<ShopAction[]>([])
 /** A buy waiting for the player to sell or drop what's in the slot. */
-const pending = ref<{ defId: string; slot: GearSlot }>()
+const pending = ref<{ uid: string; slot: GearSlot }>()
 
 /** The hero's saved gear and gold, and the shelf as stocked. */
 const shopStart = computed<ShopState>(() => {
@@ -70,11 +71,22 @@ const shopStart = computed<ShopState>(() => {
   return { inventory: c?.inventory ?? [], equipped: c?.equipped ?? { belt: [] }, gold: c?.gold ?? 0, stock: game.shop?.stock ?? [] }
 })
 
-/** The shop state after some buys and sells, with throwaway uids. */
-function draft(list: ShopAction[]): ShopState {
-  let n = 0
-  return applyShop(shopStart.value, list, () => `draft${n++}`).state
+/** The shop state after some buys and sells. */
+const draft = (list: ShopAction[]): ShopState => {
+  return applyShop(shopStart.value, list).state
 }
+
+interface Ware {
+  uid: string
+  def: ItemDef
+  grade: GradeId
+  name: string
+  color: string
+  placeholder: boolean
+}
+
+const ware = (inst: ItemInstance, def: ItemDef, placeholder = false): Ware =>
+  ({ uid: inst.uid, def, grade: inst.grade, name: itemName(inst, def), color: gradeOf(inst).color, placeholder })
 
 /** The hero's gear, gold and the shelf with this visit's buys and sells applied. */
 const preview = computed<ShopState>(() => draft(actions.value))
@@ -84,9 +96,15 @@ const SLOTS: { slot: GearSlot; label: string }[] = [
   { slot: 'offHand', label: 'Off hand' },
   { slot: 'body', label: 'Armor' }
 ]
-const yourGear = computed(() => SLOTS.map(s => ({ ...s, def: itemIn(preview.value, s.slot)?.def })))
+const yourGear = computed(() => SLOTS.map(s => {
+  const it = itemIn(preview.value, s.slot)
+  return { ...s, ware: it ? ware(it.inst, it.def) : undefined }
+}))
 
-const forSale = computed(() => preview.value.stock.flatMap(id => (ITEMS[id] ? [ITEMS[id]] : [])))
+const forSale = computed(() => preview.value.stock.flatMap(inst => {
+  const def = defOf(inst)
+  return def ? [ware(inst, def)] : []
+}))
 
 /** For sale, split by kind. Potions and scrolls have no items yet, so their sections stay empty. */
 const SALE_SECTIONS: { kind: ItemKind; label: string }[] = [
@@ -97,61 +115,72 @@ const SALE_SECTIONS: { kind: ItemKind; label: string }[] = [
   { kind: 'scroll', label: 'Scrolls' }
 ]
 const TEST_PLACEHOLDER_ITEMS = true
-const placeholder = (id: string, kind: 'potion' | 'scroll', name: string): ConsumableDef => ({
-  id: `placeholder-${id}`, name, kind, icon: kind === 'potion' ? '🧪' : '📜', weight: 0, cost: 0, actionId: 'useItem', effects: [], target: 'self'
-})
-const PLACEHOLDER_ITEMS = [1, 2, 3].flatMap(n => [
-  placeholder(`potion-${n}`, 'potion', 'ST Potion'),
-  placeholder(`scroll-${n}`, 'scroll', 'Scroll')
-])
-const PLACEHOLDER_BELT: Record<'potion' | 'scroll', { def: ItemDef; count: number }[]> = {
+const PLACEHOLDER_DEFS: Record<'potion' | 'scroll', ConsumableDef> = {
+  potion: { id: 'placeholder-potion', name: 'Strength Potion', kind: 'potion', icon: '🧪', weight: 0, cost: 0, actionId: 'useItem', effects: [], target: 'self' },
+  scroll: { id: 'placeholder-scroll', name: 'Scroll', kind: 'scroll', icon: '📜', weight: 0, cost: 0, actionId: 'useItem', effects: [], target: 'self' }
+}
+const placeholderWare = (key: string, kind: 'potion' | 'scroll', grade: GradeId): Ware =>
+  ware({ uid: `placeholder-${key}`, defId: PLACEHOLDER_DEFS[kind].id, grade, traits: [] }, PLACEHOLDER_DEFS[kind], true)
+const PLACEHOLDER_SHELF: Ware[] = [
+  placeholderWare('potion-1', 'potion', 'ordinary'),
+  placeholderWare('potion-2', 'potion', 'cool'),
+  placeholderWare('potion-3', 'potion', 'bitchin'),
+  placeholderWare('scroll-1', 'scroll', 'cool'),
+  placeholderWare('scroll-2', 'scroll', 'bitchin'),
+  placeholderWare('scroll-3', 'scroll', 'righteous')
+]
+
+interface Stack { ware: Ware; count: number }
+
+const PLACEHOLDER_BELT: Record<'potion' | 'scroll', Stack[]> = {
   potion: [
-    { def: placeholder('belt-potion-1', 'potion', 'ST Potion'), count: 3 },
-    { def: placeholder('belt-potion-2', 'potion', 'Large ST Potion'), count: 1 }
+    { ware: placeholderWare('belt-potion-1', 'potion', 'ordinary'), count: 3 },
+    { ware: placeholderWare('belt-potion-2', 'potion', 'bitchin'), count: 1 }
   ],
   scroll: [
-    { def: placeholder('belt-scroll-1', 'scroll', 'Scroll'), count: 2 },
-    { def: placeholder('belt-scroll-2', 'scroll', 'Sealed Scroll'), count: 1 }
+    { ware: placeholderWare('belt-scroll-1', 'scroll', 'cool'), count: 2 },
+    { ware: placeholderWare('belt-scroll-2', 'scroll', 'righteous'), count: 1 }
   ]
 }
-const isPlaceholder = (def: ItemDef) => def.id.startsWith('placeholder-')
 
 const BELT_SLOTS = 2
 const beltSlots = computed(() => (['potion', 'scroll'] as const).map(kind => {
-  const stacks: { def: ItemDef; count: number }[] = []
+  const stacks: Stack[] = []
   for (const uid of preview.value.equipped.belt) {
-    const def = ITEMS[preview.value.inventory.find(i => i.uid === uid)?.defId ?? '']
-    if (def?.kind !== kind) continue
-    const stack = stacks.find(s => s.def.id === def.id)
+    const inst = preview.value.inventory.find(i => i.uid === uid)
+    const def = inst ? defOf(inst) : undefined
+    if (!inst || def?.kind !== kind) continue
+    const w = ware(inst, def)
+    const stack = stacks.find(s => s.ware.name === w.name)
     if (stack) stack.count++
-    else stacks.push({ def, count: 1 })
+    else stacks.push({ ware: w, count: 1 })
   }
   const shown = TEST_PLACEHOLDER_ITEMS ? PLACEHOLDER_BELT[kind] : stacks
   return {
     kind,
     label: kind === 'potion' ? 'Potions' : 'Scrolls',
-    items: Array.from({ length: BELT_SLOTS }, (_, i) => shown[i])
+    items: Array.from({ length: BELT_SLOTS }, (_, i): Stack | undefined => shown[i])
   }
 }))
 
 const hoveredSlot = ref<{ kind: 'potion' | 'scroll'; index: number }>()
-const hoveredStack = (b: { kind: 'potion' | 'scroll'; items: ({ def: ItemDef; count: number } | undefined)[] }) =>
+const hoveredStack = (b: { kind: 'potion' | 'scroll'; items: (Stack | undefined)[] }) =>
   (hoveredSlot.value?.kind === b.kind ? b.items[hoveredSlot.value.index] : undefined)
 
 const forSaleSections = computed(() => SALE_SECTIONS.map(s => ({
   ...s,
-  items: [...forSale.value, ...(TEST_PLACEHOLDER_ITEMS ? PLACEHOLDER_ITEMS : [])].filter(d => d.kind === s.kind)
+  items: [...forSale.value, ...(TEST_PLACEHOLDER_ITEMS ? PLACEHOLDER_SHELF : [])].filter(w => w.def.kind === s.kind)
 })))
 
 /** The shelf card flipped to its back (details and Buy now). One at a time; a bought item leaves the shelf. */
 const selectedId = ref<string>()
 
-function select(def: ItemDef) {
-  selectedId.value = def.id
-  if (pending.value?.defId !== def.id) pending.value = undefined
+const select = (w: Ware) => {
+  selectedId.value = w.uid
+  if (pending.value?.uid !== w.uid) pending.value = undefined
 }
 
-function unselect() {
+const unselect = () => {
   selectedId.value = undefined
   pending.value = undefined
 }
@@ -161,21 +190,24 @@ const openSection = ref<ItemKind>()
 const isOpen = (kind: ItemKind) => openSection.value === kind
 
 /** Opens a section's drawer and closes any other, or closes it if it's open. Closing turns back a card flipped inside. */
-function toggleSection(kind: ItemKind) {
+const toggleSection = (kind: ItemKind) => {
   const closing = openSection.value
   openSection.value = closing === kind ? undefined : kind
-  if (closing && forSaleSections.value.find(s => s.kind === closing)?.items.some(d => d.id === selectedId.value)) unselect()
+  if (closing && forSaleSections.value.find(s => s.kind === closing)?.items.some(w => w.uid === selectedId.value)) unselect()
 }
-const pendingOld = computed(() => (pending.value ? itemIn(preview.value, pending.value.slot)?.def : undefined))
+const pendingOld = computed(() => {
+  const it = pending.value ? itemIn(preview.value, pending.value.slot) : undefined
+  return it ? ware(it.inst, it.def) : undefined
+})
 
 /** Slots an item can be bought for: a one-handed weapon also fits the off hand with Two Weapons. */
-function slotsFor(def: ItemDef): GearSlot[] {
+const slotsFor = (def: ItemDef): GearSlot[] => {
   if (def.kind === 'weapon') return def.hands === 1 && hasTalent(talents.value, 'twoWeapons') ? ['mainHand', 'offHand'] : ['mainHand']
   return (['offHand', 'body'] as const).filter(s => fits(def, s))
 }
 
 /** Whether the hero can pay, counting the sale of what's in the slot unless it's dropped. */
-function canAfford(def: ItemDef, slot: GearSlot, old: 'sell' | 'drop' = 'sell'): boolean {
+const canAfford = (def: ItemDef, slot: GearSlot, old: 'sell' | 'drop' = 'sell'): boolean => {
   const current = itemIn(preview.value, slot)
   return preview.value.gold + (current && old === 'sell' ? sellPrice(current.def) : 0) >= def.cost
 }
@@ -183,46 +215,63 @@ function canAfford(def: ItemDef, slot: GearSlot, old: 'sell' | 'drop' = 'sell'):
 /** Whether the hero can pay for it in any slot it fits. */
 const affordable = (def: ItemDef) => slotsFor(def).some(s => canAfford(def, s))
 
-function buy(def: ItemDef, slot: GearSlot) {
-  if (itemIn(preview.value, slot)) pending.value = { defId: def.id, slot }
-  else actions.value.push({ kind: 'buy', defId: def.id, slot })
+const COMPARE_SLOT: Partial<Record<ItemKind, { slot: GearSlot; empty: string }>> = {
+  weapon: { slot: 'mainHand', empty: 'no weapon' },
+  armor: { slot: 'body', empty: 'no armor' },
+  shield: { slot: 'offHand', empty: 'an empty off hand' }
 }
 
-function finishBuy(old: 'sell' | 'drop') {
+const comparisons = computed(() => {
+  const current = loadoutOf(preview.value)
+  return Object.fromEntries(forSale.value.flatMap(w => {
+    const where = COMPARE_SLOT[w.def.kind]
+    if (!where) return []
+    const it = itemIn(preview.value, where.slot)
+    const mine = it ? ware(it.inst, it.def) : undefined
+    const c = comparePower(attrs.value, talents.value, current, withItem(current, w.def))
+    return [[w.uid, { ...c, mineName: mine?.name, mineColor: mine?.color, emptyLabel: where.empty, showStops: w.def.kind !== 'weapon' }]]
+  }))
+})
+
+const buy = (w: Ware, slot: GearSlot) => {
+  if (itemIn(preview.value, slot)) pending.value = { uid: w.uid, slot }
+  else actions.value.push({ kind: 'buy', uid: w.uid, slot })
+}
+
+const finishBuy = (old: 'sell' | 'drop') => {
   const p = pending.value
   if (!p) return
-  actions.value.push({ kind: 'buy', defId: p.defId, slot: p.slot, old })
+  actions.value.push({ kind: 'buy', uid: p.uid, slot: p.slot, old })
   pending.value = undefined
 }
 
-function sell(slot: GearSlot) {
+const sell = (slot: GearSlot) => {
   actions.value.push({ kind: 'sell', slot })
   pending.value = undefined
 }
 
-function undo() {
+const undo = () => {
   actions.value.pop()
   pending.value = undefined
 }
 
 const dmg = (d: { dice: number; mod: number }) => `${d.dice}d${d.mod ? (d.mod > 0 ? `+${d.mod}` : d.mod) : ''}`
 
-function stats(def: ItemDef): string {
-  if (def.kind === 'weapon') return `${dmg(def.damage)} · ${def.hands === 2 ? 'two hands' : 'one hand'}${def.range ? ` · range ${def.range}` : ''} · ST ${def.minST}`
+const stats = (def: ItemDef): string => {
+  if (def.kind === 'weapon') return `${dmg(def.damage)} · ST ${def.minST} · ${def.hands}H${def.range ? ` · Rng ${def.range}` : ''}`
   if (def.kind === 'armor') return `Stops ${def.hitsStopped} · −${def.dxPenalty} DX · MA ${def.maxMA}`
   if (def.kind === 'shield') return `Stops ${def.hitsStopped}${def.dxPenalty ? ` · −${def.dxPenalty} DX` : ''}`
   return ''
 }
 
-/** What would be wrong with using the item, for this hero as they stand. */
-function warnings(def: ItemDef): string[] {
+const warnings = (def: ItemDef): string[] => {
   const out: string[] = []
   if (def.kind === 'weapon') {
-    if (attrs.value.ST < def.minST) out.push(`Needs ST ${def.minST}; yours is ${attrs.value.ST}.`)
-    if (!hasTalent(talents.value, def.talent)) out.push(`You don't know ${TALENTS[def.talent]?.name ?? def.talent}: −${NO_TALENT_DX_PENALTY} DX with it.`)
-    if (def.hands === 2) out.push('Two hands: no shield or second weapon with it.')
+    if (attrs.value.ST < def.minST) out.push(`Needs ST ${def.minST} (you ${attrs.value.ST})`)
+    if (!hasTalent(talents.value, def.talent)) out.push(`No ${TALENTS[def.talent]?.name ?? def.talent} talent: −${NO_TALENT_DX_PENALTY} DX`)
+    if (def.hands === 2) out.push('Two-handed: no shield')
   }
-  if (def.kind === 'shield' && !hasTalent(talents.value, 'shield')) out.push(`You don't know Shield: −${NO_TALENT_DX_PENALTY} DX with it.`)
+  if (def.kind === 'shield' && !hasTalent(talents.value, 'shield')) out.push(`No Shield talent: −${NO_TALENT_DX_PENALTY} DX`)
   return out
 }
 
@@ -260,41 +309,44 @@ const shownWarnings = computed(() => [
 
 /** Everything Next battle will save, one line each. */
 const changes = computed(() => {
-  const out: { icon: string; text: string }[] = []
+  const out: { icon: string; lead: string; item?: Ware; tail?: string }[] = []
 
   const raised = (['ST', 'DX', 'IQ'] as const)
     .filter(k => attrs.value[k] > saved.value[k])
     .map(k => `+${attrs.value[k] - saved.value[k]} ${k}`)
-  if (raised.length) out.push({ icon: '⬆', text: raised.join(', ') })
+  if (raised.length) out.push({ icon: '⬆', lead: raised.join(', ') })
 
   for (const t of talents.value) {
     const name = `${TALENTS[t.id]?.name ?? t.id}${t.weaponTalent ? ` (${TALENTS[t.weaponTalent]?.name ?? t.weaponTalent})` : ''}`
     for (let r = rankOf(savedTalents.value, t.id, t.weaponTalent) + 1; r <= t.rank; r++) {
-      out.push({ icon: '📜', text: `${r > 1 ? `${name} rank ${r}` : `Learned ${name}`} · −${PROGRESSION.talentXpCost} XP` })
+      out.push({ icon: '📜', lead: `${r > 1 ? `${name} rank ${r}` : `Learned ${name}`} · −${PROGRESSION.talentXpCost} XP` })
     }
   }
 
   actions.value.forEach((a, i) => {
-    const old = itemIn(draft(actions.value.slice(0, i)), a.slot)?.def
-    if (old && (a.kind === 'sell' || a.old === 'sell')) out.push({ icon: '💰', text: `Sold ${old.name} · +${sellPrice(old)} gold` })
+    const before = draft(actions.value.slice(0, i))
+    const it = itemIn(before, a.slot)
+    const old = it ? ware(it.inst, it.def) : undefined
+    if (old && (a.kind === 'sell' || a.old === 'sell')) out.push({ icon: '💰', lead: 'Sold ', item: old, tail: ` · +${sellPrice(old.def)} gold` })
     if (a.kind === 'sell') return
-    if (old && a.old === 'drop') out.push({ icon: '🗑', text: `Dropped ${old.name}` })
-    const def = ITEMS[a.defId]
-    if (def) out.push({ icon: '🛒', text: `Bought ${def.name} · −${def.cost} gold` })
+    if (old && a.old === 'drop') out.push({ icon: '🗑', lead: 'Dropped ', item: old })
+    const inst = before.stock.find(s => s.uid === a.uid)
+    const def = inst ? defOf(inst) : undefined
+    if (inst && def) out.push({ icon: '🛒', lead: 'Bought ', item: ware(inst, def), tail: ` · −${def.cost} gold` })
   })
 
   return out
 })
 
 /** Takes back everything placed, learned, bought and sold this visit. */
-function resetAll() {
+const resetAll = () => {
   attrs.value = { ...saved.value }
   talents.value = savedTalents.value.map(t => ({ ...t }))
   actions.value = []
   pending.value = undefined
 }
 
-function nextBattle() {
+const nextBattle = () => {
   if (gearProblems.value.length) return
   game.setAttributes(attrs.value)
   game.setTalents(talents.value)
@@ -351,7 +403,13 @@ function nextBattle() {
             Anything placed, learned, bought or sold here can be taken back until you press Next battle.
           </p>
           <ul class="changes">
-            <li v-for="(c, i) in changes" :key="i"><span class="change-icon">{{ c.icon }}</span>{{ c.text }}</li>
+            <li v-for="(c, i) in changes" :key="i">
+              <span class="change-icon">{{ c.icon }}</span>{{ c.lead }}<span
+                v-if="c.item"
+                class="grade-text"
+                :style="{ '--grade': c.item.color }"
+              >{{ c.item.name }}</span>{{ c.tail }}
+            </li>
             <li v-if="!changes.length" class="muted">Nothing changed yet.</li>
           </ul>
           <button v-if="changes.length" class="neu-btn small" @click="resetAll">Reset all</button>
@@ -390,17 +448,22 @@ function nextBattle() {
                 <span class="col-line" />
               </header>
               <ul class="items">
-                <li v-for="g in yourGear" :key="g.slot" class="item">
+                <li
+                  v-for="g in yourGear"
+                  :key="g.slot"
+                  :class="['item', { graded: g.ware }]"
+                  :style="g.ware ? { '--grade': g.ware.color } : undefined"
+                >
                   <div class="item-head">
                     <span class="muted">{{ g.label }}</span>
                     <span class="item-name">
-                      <span v-if="g.def" class="item-icon">{{ g.def.icon }}</span>
-                      <strong>{{ g.def ? g.def.name : 'None' }}</strong>
+                      <span v-if="g.ware" class="item-icon">{{ g.ware.def.icon }}</span>
+                      <strong :class="{ 'grade-text': g.ware }">{{ g.ware ? g.ware.name : 'None' }}</strong>
                     </span>
                   </div>
-                  <template v-if="g.def">
-                    <div class="muted">{{ stats(g.def) }}</div>
-                    <button class="neu-btn small" @click="sell(g.slot)">Sell for {{ sellPrice(g.def) }} gold</button>
+                  <template v-if="g.ware">
+                    <div class="muted">{{ stats(g.ware.def) }}</div>
+                    <button class="neu-btn small" @click="sell(g.slot)">Sell for {{ sellPrice(g.ware.def) }} gold</button>
                   </template>
                 </li>
                 <li v-for="b in beltSlots" :key="b.kind" class="item belt">
@@ -410,7 +473,8 @@ function nextBattle() {
                       <span
                         v-for="(s, i) in b.items"
                         :key="i"
-                        :class="['slot', { empty: !s }]"
+                        :class="['slot', { empty: !s, graded: s }]"
+                        :style="s ? { '--grade': s.ware.color } : undefined"
                         :tabindex="s ? 0 : undefined"
                         :title="s ? undefined : 'Empty'"
                         @mouseenter="hoveredSlot = { kind: b.kind, index: i }"
@@ -419,8 +483,8 @@ function nextBattle() {
                         @blur="hoveredSlot = undefined"
                       >
                         <template v-if="s">
-                          <PotionIcon v-if="s.def.kind === 'potion'" class="slot-potion" />
-                          <template v-else>{{ s.def.icon }}</template>
+                          <PotionIcon v-if="s.ware.def.kind === 'potion'" class="slot-potion" />
+                          <template v-else>{{ s.ware.def.icon }}</template>
                           <span v-if="s.count > 1" class="slot-count">{{ s.count }}</span>
                         </template>
                       </span>
@@ -428,10 +492,10 @@ function nextBattle() {
                   </div>
                   <div class="slot-details">
                     <template v-if="hoveredStack(b)">
-                      <strong>{{ hoveredStack(b)!.def.name }}</strong>
+                      <strong class="grade-text" :style="{ '--grade': hoveredStack(b)!.ware.color }">{{ hoveredStack(b)!.ware.name }}</strong>
                       <span class="muted">× {{ hoveredStack(b)!.count }}</span>
-                      <span v-if="isPlaceholder(hoveredStack(b)!.def)" class="muted">Placeholder. Not for sale yet.</span>
-                      <span v-else-if="stats(hoveredStack(b)!.def)" class="muted">{{ stats(hoveredStack(b)!.def) }}</span>
+                      <span v-if="hoveredStack(b)!.ware.placeholder" class="muted">Placeholder. Not for sale yet.</span>
+                      <span v-else-if="stats(hoveredStack(b)!.ware.def)" class="muted">{{ stats(hoveredStack(b)!.ware.def) }}</span>
                     </template>
                   </div>
                 </li>
@@ -458,56 +522,66 @@ function nextBattle() {
                 <div :class="['drawer', { open: isOpen(sec.kind) }]" :inert="!isOpen(sec.kind)">
                   <div class="track">
                     <p v-if="!sec.items.length" class="note">None for sale.</p>
-                    <div v-for="def in sec.items" :key="def.id" :class="['tile', { flipped: selectedId === def.id }]">
+                    <div
+                      v-for="w in sec.items"
+                      :key="w.uid"
+                      :class="['tile', { flipped: selectedId === w.uid }]"
+                      :style="{ '--grade': w.color }"
+                    >
                       <div class="tile-inner">
                         <button
                           class="tile-face tile-front"
-                          :title="def.name"
-                          :tabindex="selectedId === def.id ? -1 : 0"
-                          @click="select(def)"
+                          :title="w.name"
+                          :tabindex="selectedId === w.uid ? -1 : 0"
+                          @click="select(w)"
                         >
-                          <span v-if="warnings(def).length" class="tile-flag" title="Flip the card to see the warnings">⚠</span>
+                          <span v-if="warnings(w.def).length" class="tile-flag" title="Flip the card to see the warnings">⚠</span>
                           <span class="tile-icon">
-                            <PotionIcon v-if="def.kind === 'potion'" class="potion-icon" />
-                            <template v-else>{{ def.icon }}</template>
+                            <PotionIcon v-if="w.def.kind === 'potion'" class="potion-icon" />
+                            <template v-else>{{ w.def.icon }}</template>
                           </span>
-                          <span class="tile-name">{{ def.name }}</span>
-                          <span :class="['price', { poor: !isPlaceholder(def) && !affordable(def) }]">
-                            <GoldCoin class="price-coin" />{{ isPlaceholder(def) ? '—' : def.cost }}
+                          <span class="tile-name grade-text">{{ w.name }}</span>
+                          <span :class="['price', { poor: !w.placeholder && !affordable(w.def) }]">
+                            <GoldCoin class="price-coin" />{{ w.placeholder ? '—' : w.def.cost }}
                           </span>
                         </button>
 
                         <div
                           class="tile-face tile-back"
                           role="button"
-                          :title="`${def.name}: click to flip back`"
-                          :tabindex="selectedId === def.id ? 0 : -1"
-                          :inert="selectedId !== def.id"
+                          :title="`${w.name}: click to flip back`"
+                          :tabindex="selectedId === w.uid ? 0 : -1"
+                          :inert="selectedId !== w.uid"
                           @click="unselect"
                           @keydown.enter.self="unselect"
                         >
-                          <strong>{{ def.name }}</strong>
-                          <p v-if="isPlaceholder(def)" class="muted">Placeholder. Not for sale yet.</p>
+                          <div class="back-head">
+                            <strong class="grade-text">{{ w.name }}</strong>
+                            <span v-if="!w.placeholder" :class="['price', 'small-price', { poor: !affordable(w.def) }]">
+                              <GoldCoin class="price-coin" />{{ w.def.cost }}
+                            </span>
+                          </div>
+                          <p v-if="w.placeholder" class="muted">Placeholder. Not for sale yet.</p>
                           <template v-else>
-                            <span :class="['price', { poor: !affordable(def) }]"><GoldCoin class="price-coin" />{{ def.cost }}</span>
-                            <div class="muted">{{ stats(def) }}</div>
-                            <div v-for="w in warnings(def)" :key="w" class="warn">{{ w }}</div>
-                            <div v-if="!affordable(def)" class="warn">Not enough gold.</div>
-                            <div v-if="pending?.defId === def.id && pendingOld" class="pending">
-                              Your {{ pendingOld.name }}:
-                              <button class="neu-btn small" @click.stop="finishBuy('sell')">Sell for {{ sellPrice(pendingOld) }} gold</button>
-                              <button class="neu-btn small" :disabled="!canAfford(def, pending.slot, 'drop')" @click.stop="finishBuy('drop')">Drop</button>
+                            <div class="muted">{{ stats(w.def) }}</div>
+                            <div v-for="text in warnings(w.def)" :key="text" class="warn">{{ text }}</div>
+                            <div v-if="!affordable(w.def)" class="warn">Not enough gold</div>
+                            <PowerCompare v-if="comparisons[w.uid]" v-bind="comparisons[w.uid]!" />
+                            <div v-if="pending?.uid === w.uid && pendingOld" class="pending">
+                              Your <span class="grade-text" :style="{ '--grade': pendingOld.color }">{{ pendingOld.name }}</span>:
+                              <button class="neu-btn small" @click.stop="finishBuy('sell')">Sell for {{ sellPrice(pendingOld.def) }} gold</button>
+                              <button class="neu-btn small" :disabled="!canAfford(w.def, pending.slot, 'drop')" @click.stop="finishBuy('drop')">Drop</button>
                               <button class="neu-btn small" @click.stop="pending = undefined">Cancel</button>
                             </div>
                             <div v-else class="buttons back-buy">
                               <button
-                                v-for="s in slotsFor(def)"
+                                v-for="s in slotsFor(w.def)"
                                 :key="s"
                                 class="neu-btn small"
-                                :disabled="!canAfford(def, s)"
-                                @click.stop="buy(def, s)"
+                                :disabled="!canAfford(w.def, s)"
+                                @click.stop="buy(w, s)"
                               >
-                                {{ slotsFor(def).length > 1 ? `Buy now: ${s === 'mainHand' ? 'main hand' : 'off hand'}` : 'Buy now' }}
+                                {{ slotsFor(w.def).length > 1 ? `Buy now: ${s === 'mainHand' ? 'main hand' : 'off hand'}` : 'Buy now' }}
                               </button>
                             </div>
                           </template>
@@ -552,10 +626,6 @@ h1 {
   gap: 16px;
 }
 
-/*
- * Hero info laid out side by side in three equal columns: name and totals, attributes, Next battle.
- * The box's height comes from the columns' content; the Next battle column fits inside it and scrolls its lists.
- */
 .hero {
   flex: none;
   display: flex;
@@ -1007,8 +1077,11 @@ h2:first-child {
   -webkit-backface-visibility: hidden;
   border: none;
   border-radius: 14px;
-  background: var(--panel);
-  box-shadow: 4px 4px 9px rgba(0, 0, 0, 0.55), -3px -3px 8px rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--grade) 12%, var(--panel));
+  box-shadow:
+    4px 4px 9px rgba(0, 0, 0, 0.55),
+    -3px -3px 8px rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--grade) 75%, transparent);
   transition: box-shadow 0.15s;
 }
 
@@ -1021,12 +1094,16 @@ h2:first-child {
   padding: 16px 10px;
 }
 
-.tile-front:hover {
-  box-shadow: 6px 6px 14px rgba(0, 0, 0, 0.6), -4px -4px 11px rgba(255, 255, 255, 0.08);
+.tile-front:hover,
+.tile-back:hover {
+  box-shadow:
+    6px 6px 14px rgba(0, 0, 0, 0.6),
+    -4px -4px 11px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--grade) 75%, transparent);
 }
 
 /*
- * The back: turned to face the viewer when flipped, ringed in gold. Scrolls if the text runs long.
+ * The back: turned to face the viewer when flipped. Scrolls if the text runs long.
  * A click anywhere on it, except its buttons, turns it back over.
  */
 .tile-back {
@@ -1034,28 +1111,37 @@ h2:first-child {
   transform: rotateY(180deg);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 4px;
+  padding: 10px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
   text-align: left;
-  box-shadow:
-    4px 4px 9px rgba(0, 0, 0, 0.55),
-    -3px -3px 8px rgba(255, 255, 255, 0.06),
-    inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 75%, transparent);
 }
 
-.tile-back:hover {
-  box-shadow:
-    6px 6px 14px rgba(0, 0, 0, 0.6),
-    -4px -4px 11px rgba(255, 255, 255, 0.08),
-    inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 75%, transparent);
+.back-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.82rem;
 }
 
-.tile-back .price {
-  align-self: flex-start;
+.tile-back .warn {
+  font-size: 0.75rem;
+}
+
+.small-price {
+  padding: 1px 7px 1px 2px;
+  gap: 3px;
+  font-size: 0.75rem;
+}
+
+.small-price .price-coin {
+  width: 14px;
+  height: 14px;
 }
 
 /* Buy now sits at the bottom of the back. */
@@ -1130,6 +1216,14 @@ h2:first-child {
   font-size: 1.56rem;
 }
 
+.slot.graded {
+  background: color-mix(in srgb, var(--grade) 16%, var(--panel));
+  box-shadow:
+    inset 3px 3px 6px rgba(0, 0, 0, 0.6),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--grade) 75%, transparent);
+}
+
 .slot.empty {
   border: 1.5px dashed color-mix(in srgb, var(--muted) 45%, transparent);
 }
@@ -1192,6 +1286,18 @@ h2:first-child {
   background: var(--panel);
   box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
   font-size: 0.85rem;
+}
+
+.grade-text {
+  color: color-mix(in srgb, var(--grade) 85%, white);
+}
+
+.item.graded {
+  background: color-mix(in srgb, var(--grade) 10%, var(--panel));
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--grade) 65%, transparent);
 }
 
 .item-head {

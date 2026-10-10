@@ -18,7 +18,7 @@ const emit = defineEmits<{ 'update:modelValue': [attrs: Attributes] }>()
 
 const left = computed(() => props.total - props.modelValue.ST - props.modelValue.DX - props.modelValue.IQ)
 
-function bump(key: AttrKey, by: 1 | -1) {
+const bump = (key: AttrKey, by: 1 | -1) => {
   const next = props.modelValue[key] + by
   if (next < props.min[key] || (by > 0 && left.value <= 0)) return
   emit('update:modelValue', { ...props.modelValue, [key]: next })
