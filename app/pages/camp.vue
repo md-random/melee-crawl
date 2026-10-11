@@ -5,7 +5,7 @@ import { TALENTS } from '#shared/data/talents'
 import { defOf, gradeOf, itemName } from '#shared/engine/items'
 import { comparePower, withItem } from '#shared/engine/power'
 import {
-  attrTotalFor, hasTalent, loadoutOf, loadoutProblems, newTalentXp, nextAttrStep, rankOf, talentXpCost
+  attrTotalFor, hasTalent, loadoutOf, loadoutProblems, newTalentXp, nextAttrStep
 } from '#shared/engine/rules'
 import { applyShop, fits, itemIn, sellPrice, type GearSlot, type ShopAction, type ShopState } from '#shared/engine/shop'
 import { TEST_BONUS_ATTR_POINTS, useGameStore } from '~/stores/game'
@@ -195,6 +195,22 @@ const toggleSection = (kind: ItemKind) => {
   openSection.value = closing === kind ? undefined : kind
   if (closing && forSaleSections.value.find(s => s.kind === closing)?.items.some(w => w.uid === selectedId.value)) unselect()
 }
+
+const DRAWER_GAP = 10
+const shelfCol = useTemplateRef<HTMLElement>('shelfCol')
+const shelfMinHeight = ref(0)
+
+const measureShelf = () => {
+  const el = shelfCol.value
+  const last = el?.lastElementChild
+  if (!el || !last || openSection.value) return
+  const tallest = Math.max(0, ...[...el.querySelectorAll<HTMLElement>('.drawer')].map(d => d.scrollHeight))
+  const closed = last.getBoundingClientRect().bottom - el.getBoundingClientRect().top + parseFloat(getComputedStyle(el).paddingBottom)
+  shelfMinHeight.value = Math.ceil(closed + DRAWER_GAP + tallest)
+}
+
+watch([shelfCol, forSaleSections], measureShelf, { flush: 'post' })
+onMounted(() => document.fonts.ready.then(measureShelf))
 const pendingOld = computed(() => {
   const it = pending.value ? itemIn(preview.value, pending.value.slot) : undefined
   return it ? ware(it.inst, it.def) : undefined
@@ -307,21 +323,10 @@ const shownWarnings = computed(() => [
 
 // ---------- changes waiting for Next battle ----------
 
-/** Everything Next battle will save, one line each. */
-const changes = computed(() => {
-  const out: { icon: string; lead: string; item?: Ware; tail?: string }[] = []
+interface Change { icon: string; lead: string; item?: Ware; tail?: string }
 
-  const raised = (['ST', 'DX', 'IQ'] as const)
-    .filter(k => attrs.value[k] > saved.value[k])
-    .map(k => `+${attrs.value[k] - saved.value[k]} ${k}`)
-  if (raised.length) out.push({ icon: '⬆', lead: raised.join(', ') })
-
-  for (const t of talents.value) {
-    const name = `${TALENTS[t.id]?.name ?? t.id}${t.weaponTalent ? ` (${TALENTS[t.weaponTalent]?.name ?? t.weaponTalent})` : ''}`
-    for (let r = rankOf(savedTalents.value, t.id, t.weaponTalent) + 1; r <= t.rank; r++) {
-      out.push({ icon: '📜', lead: `${r > 1 ? `${name} rank ${r}` : `Learned ${name}`} · −${talentXpCost(t.id)} XP` })
-    }
-  }
+const shopChanges = computed(() => {
+  const out: Change[] = []
 
   actions.value.forEach((a, i) => {
     const before = draft(actions.value.slice(0, i))
@@ -337,14 +342,6 @@ const changes = computed(() => {
 
   return out
 })
-
-/** Takes back everything placed, learned, bought and sold this visit. */
-const resetAll = () => {
-  attrs.value = { ...saved.value }
-  talents.value = savedTalents.value.map(t => ({ ...t }))
-  actions.value = []
-  pending.value = undefined
-}
 
 const nextBattle = () => {
   if (gearProblems.value.length) return
@@ -362,7 +359,11 @@ const nextBattle = () => {
 
     <div class="layout">
       <section class="box hero">
-        <div class="badge-col">
+        <div class="badge-col col-panel">
+          <header class="col-head">
+            <h2>Melee Hero</h2>
+            <span class="col-line" />
+          </header>
           <div class="bubbles">
             <div class="bubble name">
               <span class="bubble-icon">👤</span>
@@ -383,36 +384,24 @@ const nextBattle = () => {
           </div>
         </div>
 
-        <div class="attr-col">
-          <h2 class="pill-label">Attributes</h2>
+        <div class="attr-col col-panel">
+          <header class="col-head">
+            <h2>Attributes</h2>
+            <span class="col-line" />
+          </header>
           <div class="attr-area">
             <div class="points" :style="{ width: pointsSize, height: pointsSize }">
               <strong>{{ pointsLeft }}</strong>
               <small>points</small>
             </div>
             <div ref="attrStack">
-              <AttributeEditor v-model="attrs" :min="saved" :total="total" />
+              <AttributeEditor v-model="attrs" :min="saved" :total="total" gains />
             </div>
           </div>
           <p class="note">{{ pointsText }}</p>
         </div>
 
-        <div class="go-col">
-          <p class="note">
-            Each new talent costs XP as well as IQ.
-            Anything placed, learned, bought or sold here can be taken back until you press Next battle.
-          </p>
-          <ul class="changes">
-            <li v-for="(c, i) in changes" :key="i">
-              <span class="change-icon">{{ c.icon }}</span>{{ c.lead }}<span
-                v-if="c.item"
-                class="grade-text"
-                :style="{ '--grade': c.item.color }"
-              >{{ c.item.name }}</span>{{ c.tail }}
-            </li>
-            <li v-if="!changes.length" class="muted">Nothing changed yet.</li>
-          </ul>
-          <button v-if="changes.length" class="neu-btn small" @click="resetAll">Reset all</button>
+        <div class="go-col col-panel">
           <ul v-if="shownProblems.length || shownWarnings.length" class="alerts">
             <li v-for="(p, i) in shownProblems" :key="`p${i}`" class="alert blocker">⚠ {{ p }}</li>
             <li v-for="w in shownWarnings" :key="w" class="alert warning">
@@ -420,7 +409,7 @@ const nextBattle = () => {
               <button class="dismiss" title="Dismiss" @click="dismissed.push(w)">×</button>
             </li>
           </ul>
-          <button class="neu-btn battle" :disabled="gearProblems.length > 0" @click="nextBattle">Next battle</button>
+          <button :class="['neu-btn', 'battle', { ready: !gearProblems.length }]" :disabled="gearProblems.length > 0" @click="nextBattle">Next battle</button>
         </div>
       </section>
 
@@ -504,7 +493,22 @@ const nextBattle = () => {
               <button v-if="actions.length" class="neu-btn small undo" @click="undo">Undo last buy or sell</button>
             </div>
 
-            <div class="shelf-col col-panel">
+            <div class="shop-changes col-panel">
+              <header class="col-head">
+                <h2>Transactions</h2>
+                <span class="col-line" />
+              </header>
+              <ul>
+                <li v-for="(c, i) in shopChanges" :key="i">
+                  <span class="change-icon">{{ c.icon }}</span>{{ c.lead }}<span
+                    class="grade-text"
+                    :style="{ '--grade': c.item?.color }"
+                  >{{ c.item?.name }}</span>{{ c.tail }}
+                </li>
+              </ul>
+            </div>
+
+            <div ref="shelfCol" class="shelf-col col-panel" :style="{ minHeight: `${shelfMinHeight}px` }">
               <header class="col-head">
                 <h2>Camp Shop</h2>
                 <span class="col-line" />
@@ -650,6 +654,8 @@ h1 {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, color-mix(in srgb, var(--accent) 55%, var(--muted)) 68.89%, var(--panel)) rgba(0, 0, 0, 0.35);
 }
 
 /* On small screens the hero info stacks in one column and the whole page scrolls instead. */
@@ -701,11 +707,12 @@ h2:first-child {
 .badge-col {
   align-self: stretch;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
 }
 
 .bubbles {
+  flex: 1;
+  justify-content: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -756,23 +763,12 @@ h2:first-child {
   text-align: center;
 }
 
-.pill-label,
 .attr-col .note {
   color: color-mix(in srgb, var(--accent) 55%, var(--muted));
 }
 
-.pill-label {
-  display: inline-block;
-  margin: 0 0 10px;
-  padding: 6px 18px;
-  border-radius: 999px;
-  background: var(--panel);
-  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
-}
-
-/* The ATTRIBUTES label spans 80% of its column. */
-.attr-col > .pill-label {
-  width: 80%;
+.attr-col > .col-head {
+  align-self: stretch;
 }
 
 .sale-section + .sale-section {
@@ -816,15 +812,16 @@ h2:first-child {
 }
 
 .drawer {
-  max-height: 0;
+  interpolate-size: allow-keywords;
+  height: 0;
   margin-top: 0;
   overflow: hidden;
   opacity: 0;
-  transition: max-height 0.3s ease, margin-top 0.3s ease, opacity 0.2s;
+  transition: height 0.3s ease, margin-top 0.3s ease, opacity 0.2s;
 }
 
 .drawer.open {
-  max-height: 320px;
+  height: auto;
   margin-top: 10px;
   opacity: 1;
 }
@@ -911,6 +908,20 @@ h2:first-child {
   --tone: #4fc3b5;
 }
 
+.bubble.xp,
+.bubble.xp-left,
+.bubble.gold {
+  gap: 15px;
+}
+
+.bubble.xp > span:last-child,
+.bubble.xp-left > span:last-child,
+.bubble.gold > span:last-child {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .bubble.gold {
   --tone: var(--accent);
 }
@@ -984,13 +995,32 @@ h2:first-child {
 
 .shop {
   display: flex;
-  gap: 175px;
+  gap: 16px;
   align-items: flex-start;
+}
+
+.shop-changes {
+  flex: 0 0 183px;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.shop-changes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.shop-changes li + li {
+  margin-top: 10px;
 }
 
 .gear-col {
   flex: 0 0 calc((100% - 32px) / 4 + 32px);
   min-width: 252px;
+  align-self: stretch;
 }
 
 .col-panel {
@@ -1025,15 +1055,22 @@ h2:first-child {
 .shelf-col {
   flex: 1 1 0;
   min-width: 0;
+  align-self: stretch;
 }
 
 @media (max-width: 900px) {
   .shop {
     flex-direction: column;
     align-items: stretch;
+    gap: 175px;
+  }
+
+  .shop-changes:not(:has(li)) {
+    display: none;
   }
 
   .gear-col,
+  .shop-changes,
   .shelf-col {
     flex: none;
   }
@@ -1218,7 +1255,7 @@ h2:first-child {
 }
 
 .slot.graded {
-  background: color-mix(in srgb, var(--grade) 16%, var(--panel));
+  background: color-mix(in srgb, var(--grade) 35%, var(--panel));
   box-shadow:
     inset 3px 3px 6px rgba(0, 0, 0, 0.6),
     inset -2px -2px 5px rgba(255, 255, 255, 0.05),
@@ -1401,6 +1438,7 @@ h2:first-child {
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  padding: 20px 16px;
   text-align: center;
 }
 
@@ -1408,33 +1446,16 @@ h2:first-child {
   flex-shrink: 0;
 }
 
-/* Muted steel blue: IQ's blue mixed with the grey label color, like the attributes column's muted gold. */
-.go-col .note {
-  margin: 0;
-  color: color-mix(in srgb, #5a9ef0 55%, var(--muted));
-}
-
-/* Never squeezed; scrolls past 3 lines. */
-.changes {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 4.8em;
-  overflow-y: auto;
-  font-size: 0.85rem;
-  line-height: 1.6;
-}
-
 .go-col > .alerts {
   flex-shrink: 1;
   min-height: 0;
+  margin-bottom: 25px;
 }
 
 /* Thin dark scrollbars, so they don't show as white bars on the dark panel. */
-.changes,
 .alerts {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: color-mix(in srgb, color-mix(in srgb, var(--accent) 55%, var(--muted)) 68.89%, var(--panel)) rgba(0, 0, 0, 0.35);
 }
 
 .change-icon {
@@ -1450,8 +1471,9 @@ h2:first-child {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  text-align: left;
 }
 
 /* One column on small screens: the column sizes to its content again, and the list gets a cap instead. */
@@ -1472,20 +1494,12 @@ h2:first-child {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: var(--panel);
-  box-shadow:
-    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
-    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1.5px rgba(var(--ring), 0.7);
   color: rgb(var(--ring));
   font-size: 0.82rem;
 }
 
 .alert.warning {
   --ring: 232, 163, 61;
-  padding-right: 5px;
 }
 
 /* Close button on a warning: small and raised, since it can be pressed. */
@@ -1544,6 +1558,10 @@ h2:first-child {
   padding: 9px 44px;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.battle.ready {
+  color: #e07a6a;
 }
 
 /* Small raised buttons: Reset all and the shop's buy, sell, drop, cancel and undo. */

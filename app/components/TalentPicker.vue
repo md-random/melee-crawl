@@ -463,7 +463,7 @@ h2 {
   margin-top: 8px;
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: color-mix(in srgb, color-mix(in srgb, var(--accent) 55%, var(--muted)) 68.89%, var(--panel)) rgba(0, 0, 0, 0.35);
 }
 
 .tree-wrap {
@@ -761,6 +761,31 @@ h2 {
 
 .weapon.available {
   --ring: color-mix(in srgb, var(--accent) 75%, transparent);
+  position: relative;
+  overflow: hidden;
+  animation: weapon-pulse 0.6s ease-out 0.15s;
+}
+
+.weapon.available::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: weapon-shimmer 0.8s ease-in-out 0.15s;
+  pointer-events: none;
+}
+
+@keyframes weapon-pulse {
+  40% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes weapon-shimmer {
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .weapon.owned,

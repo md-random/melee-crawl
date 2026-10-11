@@ -12,6 +12,7 @@ const props = defineProps<{
   total: number
   /** One line under each attribute. */
   notes?: Partial<Record<AttrKey, string>>
+  gains?: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [attrs: Attributes] }>()
@@ -35,6 +36,7 @@ const bump = (key: AttrKey, by: 1 | -1) => {
           <span class="val">{{ modelValue[key] }}</span>
           <button class="step" :disabled="left <= 0" @click="bump(key, 1)">+</button>
         </div>
+        <span v-if="gains" :class="['gain', { hidden: modelValue[key] <= min[key] }]">+{{ modelValue[key] - min[key] }}</span>
       </div>
       <p v-if="notes?.[key]" class="note">{{ notes[key] }}</p>
     </div>
@@ -138,6 +140,28 @@ const bump = (key: AttrKey, by: 1 | -1) => {
     inset 0 0 0 2px color-mix(in srgb, var(--tone) 70%, transparent);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.gain {
+  display: grid;
+  place-items: center;
+  min-width: 31.4px;
+  height: 31.4px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.6),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--tone) 70%, transparent);
+  color: var(--tone);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gain.hidden {
+  visibility: hidden;
 }
 
 .note {
