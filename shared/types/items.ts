@@ -35,7 +35,7 @@ interface ItemBase {
   unverified?: boolean
 }
 
-export interface WeaponDef extends ItemBase {
+export interface WeaponDef extends Omit<ItemBase, 'weight'> {
   kind: 'weapon'
   talent: Id                   // talent required to use without penalty
   damage: DiceExpr
@@ -44,6 +44,8 @@ export interface WeaponDef extends ItemBase {
   attackKind: 'melee' | 'pole' | 'missile' | 'thrown'
   range?: number               // missile / thrown
 }
+
+export type WeaponSpec = Omit<WeaponDef, 'kind'>
 
 export interface ArmorDef extends ItemBase {
   kind: 'armor'

@@ -1,0 +1,276 @@
+[
+  {
+    "id": "dagger",
+    "name": "Dagger",
+    "icon": "🗡",
+    "talent": "dagger",
+    "damage": {
+      "dice": 1,
+      "mod": -1
+    },
+    "minST": 0,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 10,
+    "unverified": true
+  },
+  {
+    "id": "rapier",
+    "name": "Rapier",
+    "icon": "🤺",
+    "talent": "sword",
+    "damage": {
+      "dice": 1,
+      "mod": 0
+    },
+    "minST": 9,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 40,
+    "unverified": true
+  },
+  {
+    "id": "cutlass",
+    "name": "Cutlass",
+    "icon": "⚔",
+    "talent": "sword",
+    "damage": {
+      "dice": 2,
+      "mod": -2
+    },
+    "minST": 10,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 50,
+    "unverified": true
+  },
+  {
+    "id": "shortsword",
+    "name": "Shortsword",
+    "icon": "⚔",
+    "talent": "sword",
+    "damage": {
+      "dice": 2,
+      "mod": -1
+    },
+    "minST": 11,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 60,
+    "unverified": true
+  },
+  {
+    "id": "broadsword",
+    "name": "Broadsword",
+    "icon": "⚔",
+    "talent": "sword",
+    "damage": {
+      "dice": 2,
+      "mod": 0
+    },
+    "minST": 12,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 80,
+    "unverified": true
+  },
+  {
+    "id": "bastardSword",
+    "name": "Bastard Sword",
+    "icon": "⚔",
+    "talent": "sword",
+    "damage": {
+      "dice": 2,
+      "mod": 1
+    },
+    "minST": 13,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 100,
+    "unverified": true
+  },
+  {
+    "id": "twoHandedSword",
+    "name": "Two-Handed Sword",
+    "icon": "⚔",
+    "talent": "sword",
+    "damage": {
+      "dice": 3,
+      "mod": -1
+    },
+    "minST": 14,
+    "hands": 2,
+    "attackKind": "melee",
+    "cost": 120,
+    "unverified": true
+  },
+  {
+    "id": "club",
+    "name": "Club",
+    "icon": "🏏",
+    "talent": "mace",
+    "damage": {
+      "dice": 1,
+      "mod": 0
+    },
+    "minST": 9,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 5,
+    "unverified": true
+  },
+  {
+    "id": "hammer",
+    "name": "Hammer",
+    "icon": "🔨",
+    "talent": "mace",
+    "damage": {
+      "dice": 1,
+      "mod": 1
+    },
+    "minST": 10,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 30,
+    "unverified": true
+  },
+  {
+    "id": "smallAx",
+    "name": "Small Ax",
+    "icon": "🪓",
+    "talent": "ax",
+    "damage": {
+      "dice": 1,
+      "mod": 2
+    },
+    "minST": 10,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 30,
+    "unverified": true
+  },
+  {
+    "id": "mace",
+    "name": "Mace",
+    "icon": "🔨",
+    "talent": "mace",
+    "damage": {
+      "dice": 2,
+      "mod": -1
+    },
+    "minST": 11,
+    "hands": 1,
+    "attackKind": "melee",
+    "cost": 50,
+    "unverified": true
+  },
+  {
+    "id": "battleaxe",
+    "name": "Battleaxe",
+    "icon": "🪓",
+    "talent": "ax",
+    "damage": {
+      "dice": 3,
+      "mod": 0
+    },
+    "minST": 15,
+    "hands": 2,
+    "attackKind": "melee",
+    "cost": 100,
+    "unverified": true
+  },
+  {
+    "id": "spear",
+    "name": "Spear",
+    "icon": "🔱",
+    "talent": "poleWeapons",
+    "damage": {
+      "dice": 1,
+      "mod": 1
+    },
+    "minST": 9,
+    "hands": 1,
+    "attackKind": "pole",
+    "cost": 20,
+    "unverified": true
+  },
+  {
+    "id": "halberd",
+    "name": "Halberd",
+    "icon": "🔱",
+    "talent": "poleWeapons",
+    "damage": {
+      "dice": 2,
+      "mod": 0
+    },
+    "minST": 13,
+    "hands": 2,
+    "attackKind": "pole",
+    "cost": 80,
+    "unverified": true
+  },
+  {
+    "id": "smallBow",
+    "name": "Small Bow",
+    "icon": "🏹",
+    "talent": "bow",
+    "damage": {
+      "dice": 1,
+      "mod": -1
+    },
+    "minST": 9,
+    "hands": 2,
+    "attackKind": "missile",
+    "range": 15,
+    "cost": 40,
+    "unverified": true
+  },
+  {
+    "id": "longbow",
+    "name": "Longbow",
+    "icon": "🏹",
+    "talent": "bow",
+    "damage": {
+      "dice": 1,
+      "mod": 2
+    },
+    "minST": 11,
+    "hands": 2,
+    "attackKind": "missile",
+    "range": 20,
+    "cost": 100,
+    "unverified": true
+  },
+  {
+    "id": "lightCrossbow",
+    "name": "Light Crossbow",
+    "icon": "🎯",
+    "talent": "crossbow",
+    "damage": {
+      "dice": 2,
+      "mod": 0
+    },
+    "minST": 12,
+    "hands": 2,
+    "attackKind": "missile",
+    "range": 20,
+    "cost": 120,
+    "unverified": true
+  },
+  {
+    "id": "javelin",
+    "name": "Javelin",
+    "icon": "🌀",
+    "talent": "thrownWeapons",
+    "damage": {
+      "dice": 1,
+      "mod": 1
+    },
+    "minST": 9,
+    "hands": 1,
+    "attackKind": "thrown",
+    "range": 8,
+    "cost": 15,
+    "unverified": true
+  }
+]

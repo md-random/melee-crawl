@@ -11,8 +11,8 @@ type LooseItem = Record<string, unknown>
 interface LooseSave {
   schemaVersion: number
   run?: {
-    character?: { inventory?: LooseItem[] }
-    battle?: { units?: Record<string, Record<string, unknown>> }
+    character?: { inventory?: LooseItem[]; talents?: unknown; plannedTalents?: unknown }
+    battle?: { units?: Record<string, Record<string, unknown>>; killedBy?: { talents?: unknown } }
     shop?: { stock?: unknown[] }
   }
   [key: string]: unknown
@@ -25,6 +25,25 @@ const gradeItems = (items: unknown) => {
     if (!Array.isArray(item.traits)) item.traits = []
   }
 }
+
+const TALENT_RENAMES: Record<string, string> = {
+  toughness: 'toughnessI',
+  toughness2: 'toughnessII',
+  unarmed1: 'unarmedCombatI',
+  unarmed2: 'unarmedCombatII',
+  unarmed3: 'unarmedCombatIII',
+  unarmed4: 'unarmedCombatIV',
+  unarmed5: 'unarmedCombatV'
+}
+
+const renameTalent = (id: unknown) => (typeof id === 'string' ? TALENT_RENAMES[id] ?? id : id)
+
+const renameOwned = (talents: unknown) => {
+  if (!Array.isArray(talents)) return
+  for (const t of talents as LooseItem[]) t.id = renameTalent(t.id)
+}
+
+const renameIds = (ids: unknown) => (Array.isArray(ids) ? ids.map(renameTalent) : ids)
 
 const MIGRATIONS: Record<number, (save: LooseSave) => LooseSave> = {
   // 1 → 2: battle units gained `traits` (creature traits moved out of talents).
@@ -43,6 +62,23 @@ const MIGRATIONS: Record<number, (save: LooseSave) => LooseSave> = {
         typeof entry === 'string' ? { uid: `shop-migrated-${i}`, defId: entry, grade: 'ordinary', traits: [] } : entry
       )
     }
+    return save
+  },
+  3: save => {
+    const character = save.run?.character
+    if (character) {
+      renameOwned(character.talents)
+      character.plannedTalents = renameIds(character.plannedTalents)
+    }
+    for (const unit of Object.values(save.run?.battle?.units ?? {})) {
+      renameOwned(unit.talents)
+      if (!Array.isArray(unit.effects)) continue
+      for (const effect of unit.effects as { source?: LooseItem }[]) {
+        if (effect.source?.kind === 'talent') effect.source.id = renameTalent(effect.source.id)
+      }
+    }
+    const killedBy = save.run?.battle?.killedBy
+    if (killedBy) killedBy.talents = renameIds(killedBy.talents)
     return save
   }
 }

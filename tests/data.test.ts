@@ -4,6 +4,8 @@ import { ARCHETYPES, CREATURES, archetypesFor } from '#shared/data/creatures'
 import { ITEMS } from '#shared/data/items'
 import { TALENTS } from '#shared/data/talents'
 import { TRAITS } from '#shared/data/traits'
+import { ACTIONS } from '#shared/engine/actions'
+import { isSvgIcon, svgProblems } from '#shared/engine/icons'
 
 const talentRefs = (req?: Requirement): string[] => {
   if (!req) return []
@@ -60,5 +62,12 @@ describe('data integrity', () => {
       if (seen) expect(ids, `${c.id} in genus ${c.genus}`).toEqual(seen)
       else byGenus.set(c.genus, ids)
     }
+  })
+
+  it('every SVG icon passes the SVG checks', () => {
+    const icons = [...Object.values(TALENTS), ...Object.values(TRAITS), ...Object.values(ITEMS), ...Object.values(ACTIONS)]
+      .map(d => [d.id, d.icon] as const)
+      .filter(([, icon]) => isSvgIcon(icon))
+    for (const [id, icon] of icons) expect(svgProblems(icon), id).toEqual([])
   })
 })

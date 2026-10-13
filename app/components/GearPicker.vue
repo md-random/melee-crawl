@@ -176,6 +176,22 @@ const shieldText = computed(() => {
   font-size: 0.9rem;
 }
 
+.field select {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
+}
+
+.field select:focus {
+  outline: none;
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
 .field.off {
   color: var(--muted);
   text-decoration: line-through;

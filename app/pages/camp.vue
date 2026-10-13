@@ -2,6 +2,7 @@
 import type { Attributes, ConsumableDef, GradeId, ItemDef, ItemInstance, ItemKind, OwnedTalent } from '#shared/types'
 import { NO_TALENT_DX_PENALTY } from '#shared/data/progression'
 import { TALENTS } from '#shared/data/talents'
+import { isSvgIcon } from '#shared/engine/icons'
 import { defOf, gradeOf, itemName } from '#shared/engine/items'
 import { comparePower, withItem } from '#shared/engine/power'
 import {
@@ -447,7 +448,10 @@ const nextBattle = () => {
                   <div class="item-head">
                     <span class="muted">{{ g.label }}</span>
                     <span class="item-name">
-                      <span v-if="g.ware" class="item-icon">{{ g.ware.def.icon }}</span>
+                      <span v-if="g.ware" class="item-icon">
+                        <GameIcon v-if="isSvgIcon(g.ware.def.icon)" :svg="g.ware.def.icon" :label="g.ware.name" :size="18" :color="g.ware.color" />
+                        <template v-else>{{ g.ware.def.icon }}</template>
+                      </span>
                       <strong :class="{ 'grade-text': g.ware }">{{ g.ware ? g.ware.name : 'None' }}</strong>
                     </span>
                   </div>
@@ -474,6 +478,7 @@ const nextBattle = () => {
                       >
                         <template v-if="s">
                           <PotionIcon v-if="s.ware.def.kind === 'potion'" class="slot-potion" />
+                          <GameIcon v-else-if="isSvgIcon(s.ware.def.icon)" :svg="s.ware.def.icon" :label="s.ware.name" :size="30" :color="s.ware.color" />
                           <template v-else>{{ s.ware.def.icon }}</template>
                           <span v-if="s.count > 1" class="slot-count">{{ s.count }}</span>
                         </template>
@@ -543,6 +548,7 @@ const nextBattle = () => {
                           <span v-if="warnings(w.def).length" class="tile-flag" title="Flip the card to see the warnings">⚠</span>
                           <span class="tile-icon">
                             <PotionIcon v-if="w.def.kind === 'potion'" class="potion-icon" />
+                            <GameIcon v-else-if="isSvgIcon(w.def.icon)" :svg="w.def.icon" :label="w.name" :size="44" :color="w.color" />
                             <template v-else>{{ w.def.icon }}</template>
                           </span>
                           <span class="tile-name grade-text">{{ w.name }}</span>

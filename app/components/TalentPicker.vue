@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Attributes, CharacterClass, OwnedTalent } from '#shared/types'
+import { isSvgIcon } from '#shared/engine/icons'
 import { BRANCH_NAMES, useTalents, type TalentRow } from '~/composables/useTalents'
 
 const props = defineProps<{
@@ -307,7 +308,10 @@ const cardStyle = computed(() => {
               @blur="blur"
             >
               <span class="art">
-                <span class="glyph">{{ row.node.icon }}</span>
+                <span class="glyph">
+                  <GameIcon v-if="isSvgIcon(row.node.icon)" :svg="row.node.icon" :label="row.label" :size="30" />
+                  <template v-else>{{ row.node.icon }}</template>
+                </span>
                 <span v-if="badge(row)" class="badge">{{ badge(row) }}</span>
               </span>
               <span class="name">{{ row.label }}</span>
@@ -325,7 +329,10 @@ const cardStyle = computed(() => {
             @focusout="blur"
           >
             <div class="card-head">
-              <span class="art small">{{ shown.node.icon }}</span>
+              <span class="art small">
+                <GameIcon v-if="isSvgIcon(shown.node.icon)" :svg="shown.node.icon" :label="shown.label" :size="22" />
+                <template v-else>{{ shown.node.icon }}</template>
+              </span>
               <div class="card-title">
                 <strong>{{ shown.label }}</strong>
                 <small>

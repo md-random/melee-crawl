@@ -26,7 +26,7 @@ const ARCHETYPE_LIST: Archetype[] = [
   {
     id: 'brute', name: 'Brute', appliesTo: { baseIds: ['orc', 'hobgoblin', 'human'] },
     attrBias: { ST: 0.7, DX: 0.3 },
-    talentPriority: ['ax|mace', 'toughness', 'weaponExpertise:ax|mace'],
+    talentPriority: ['ax|mace', 'toughnessI', 'weaponExpertise:ax|mace'],
     gear: { weapons: ['battleaxe', 'mace', 'smallAx', 'club'], armor: 'leather' },
     aiProfile: 'brute',
     titles: [{ minBudget: 0, title: 'Grunt' }, { minBudget: 3, title: 'Warrior' }, { minBudget: 7, title: 'Veteran' }, { minBudget: 12, title: 'Chieftain' }]
@@ -42,7 +42,7 @@ const ARCHETYPE_LIST: Archetype[] = [
   {
     id: 'shieldwall', name: 'Shieldwall', appliesTo: { baseIds: ['human', 'orc', 'hobgoblin'] },
     attrBias: { ST: 0.5, DX: 0.4, IQ: 0.1 },
-    talentPriority: ['shield', 'sword', 'shieldExpertise', 'toughness'],
+    talentPriority: ['shield', 'sword', 'shieldExpertise', 'toughnessI'],
     gear: { weapons: ['broadsword', 'shortsword', 'cutlass', 'rapier'], armor: 'chainmail', shield: 'largeShield' },
     aiProfile: 'brute',
     titles: [{ minBudget: 0, title: 'Guard' }, { minBudget: 3, title: 'Soldier' }, { minBudget: 7, title: 'Sergeant' }, { minBudget: 12, title: 'Captain' }]

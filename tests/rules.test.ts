@@ -19,13 +19,13 @@ describe('talents', () => {
 
   it('enforces min IQ, IQ budget and attribute gates', () => {
     expect(canTakeTalent(TALENTS.running!, hero()).ok).toBe(true)
-    expect(canTakeTalent(TALENTS.toughness!, hero()).reasons).toContain('Needs IQ 9 (have 8)')
+    expect(canTakeTalent(TALENTS.toughnessI!, hero()).reasons).toContain('Needs IQ 9 (have 8)')
     const full = addTalent(addTalent(addTalent([], 'sword'), 'shield'), 'running') // 2 + 1 + 2 = 5
     expect(canTakeTalent(TALENTS.ax!, hero(addTalent(full, 'bow'))).ok).toBe(false)
     const smart = { ST: 13, DX: 12, IQ: 12 }
-    expect(canTakeTalent(TALENTS.toughness!, hero([], smart)).ok).toBe(true)
-    expect(canTakeTalent(TALENTS.toughness2!, hero([], smart)).reasons).toContain('Needs Toughness I')
-    expect(canTakeTalent(TALENTS.toughness2!, hero(addTalent([], 'toughness'), smart)).reasons).toContain('Needs ST 14 (have 13)')
+    expect(canTakeTalent(TALENTS.toughnessI!, hero([], smart)).ok).toBe(true)
+    expect(canTakeTalent(TALENTS.toughnessII!, hero([], smart)).reasons).toContain('Needs Toughness I')
+    expect(canTakeTalent(TALENTS.toughnessII!, hero(addTalent([], 'toughnessI'), smart)).reasons).toContain('Needs ST 14 (have 13)')
   })
 
   it('removing a prerequisite also removes what depended on it', () => {
@@ -47,7 +47,7 @@ describe('talents', () => {
   })
 
   it('XP cost follows the talent\'s tree level', () => {
-    expect(['running', 'alertness', 'acrobatics', 'unarmed3', 'unarmed4', 'unarmed5'].map(talentXpCost)).toEqual([50, 100, 300, 400, 500, 600])
+    expect(['running', 'alertness', 'acrobatics', 'unarmedCombatIII', 'unarmedCombatIV', 'unarmedCombatV'].map(talentXpCost)).toEqual([50, 100, 300, 400, 500, 600])
   })
 
   it('charges XP only for the ranks added since the last save', () => {
@@ -79,10 +79,10 @@ describe('talents', () => {
 
   it('Unarmed Combat steps need the one before plus DX and ST', () => {
     const strong = { ST: 12, DX: 14, IQ: 30 }
-    const four = ['unarmed1', 'unarmed2', 'unarmed3', 'unarmed4'].reduce((o, id) => addTalent(o, id), [] as ReturnType<typeof addTalent>)
-    expect(canTakeTalent(TALENTS.unarmed5!, hero(four, strong)).ok).toBe(true)
-    expect(canTakeTalent(TALENTS.unarmed5!, hero(four, { ...strong, ST: 11 })).reasons).toContain('Needs ST 12 (have 11)')
-    expect(canTakeTalent(TALENTS.unarmed3!, hero(addTalent([], 'unarmed1'), strong)).reasons).toContain('Needs Unarmed Combat II')
+    const four = ['unarmedCombatI', 'unarmedCombatII', 'unarmedCombatIII', 'unarmedCombatIV'].reduce((o, id) => addTalent(o, id), [] as ReturnType<typeof addTalent>)
+    expect(canTakeTalent(TALENTS.unarmedCombatV!, hero(four, strong)).ok).toBe(true)
+    expect(canTakeTalent(TALENTS.unarmedCombatV!, hero(four, { ...strong, ST: 11 })).reasons).toContain('Needs ST 12 (have 11)')
+    expect(canTakeTalent(TALENTS.unarmedCombatIII!, hero(addTalent([], 'unarmedCombatI'), strong)).reasons).toContain('Needs Unarmed Combat II')
   })
 })
 

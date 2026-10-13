@@ -107,40 +107,60 @@ const start = () => {
     <h1>Create your hero</h1>
 
     <div class="layout">
-      <section class="box">
-        <h2>Name</h2>
-        <input v-model="name" class="name" maxlength="24" placeholder="Grimwald">
+      <section class="box side">
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Name</h2>
+            <span class="col-line" />
+          </header>
+          <input v-model="name" class="name" maxlength="24" placeholder="Grimwald">
+        </section>
 
-        <h2>Attributes</h2>
-        <p class="note">{{ pointsText }}</p>
-        <AttributeEditor v-model="attrs" :min="MIN_ATTRS" :total="PROGRESSION.startingAttrPoints" :notes="attrText" />
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Attributes</h2>
+            <span class="col-line" />
+          </header>
+          <p class="note">{{ pointsText }}</p>
+          <AttributeEditor v-model="attrs" :min="MIN_ATTRS" :total="PROGRESSION.startingAttrPoints" :notes="attrText" />
+        </section>
 
-        <h2>Equipment</h2>
-        <GearPicker
-          v-model:weapon="weaponId"
-          v-model:offWeapon="offWeaponId"
-          v-model:armor="armorId"
-          v-model:shield="shieldId"
-          :weapons="WEAPON_OPTIONS"
-          :armors="ARMOR_OPTIONS"
-          :shields="SHIELD_OPTIONS"
-          :attrs="attrs"
-          :talents="talents"
-          cls="hero"
-          :attr-points="pointsLeft"
-        />
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Equipment</h2>
+            <span class="col-line" />
+          </header>
+          <GearPicker
+            v-model:weapon="weaponId"
+            v-model:offWeapon="offWeaponId"
+            v-model:armor="armorId"
+            v-model:shield="shieldId"
+            :weapons="WEAPON_OPTIONS"
+            :armors="ARMOR_OPTIONS"
+            :shields="SHIELD_OPTIONS"
+            :attrs="attrs"
+            :talents="talents"
+            cls="hero"
+            :attr-points="pointsLeft"
+          />
+        </section>
 
-        <h2>Your hero</h2>
-        <p v-for="l in summaryText" :key="l" class="note strong">{{ l }}</p>
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Your hero</h2>
+            <span class="col-line" />
+          </header>
+          <p v-for="l in summaryText" :key="l" class="note strong">{{ l }}</p>
 
-        <ul v-if="problems.length" class="problems">
-          <li v-for="p in problems" :key="p">{{ p }}</li>
-        </ul>
-        <button class="start" :disabled="problems.length > 0" @click="start">Start</button>
+          <ul v-if="problems.length" class="problems">
+            <li v-for="p in problems" :key="p">{{ p }}</li>
+          </ul>
+          <button class="neu-btn start" :disabled="problems.length > 0" @click="start">Start</button>
+        </section>
       </section>
 
       <section class="box">
-        <TalentPicker v-model="talents" :attrs="attrs" cls="hero" :attr-points="pointsLeft" />
+        <TalentPicker v-model="talents" class="col-panel" :attrs="attrs" cls="hero" :attr-points="pointsLeft" />
       </section>
     </div>
   </div>
@@ -159,6 +179,7 @@ h1 {
 }
 
 .layout {
+  --panel: #2b2e34;
   display: grid;
   grid-template-columns: 400px minmax(0, 1fr);
   gap: 16px;
@@ -178,16 +199,62 @@ h1 {
   padding: 12px 14px;
 }
 
-h2 {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin: 18px 0 6px;
+.side {
+  display: grid;
+  gap: 16px;
 }
 
-h2:first-child {
-  margin-top: 0;
+.col-panel {
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.55), inset -3px -3px 8px rgba(255, 255, 255, 0.05);
+}
+
+.col-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.col-head h2 {
+  margin: 0;
+  color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.col-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 45%, var(--muted)), transparent);
+}
+
+.neu-btn {
+  border: none;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 4px 4px 9px rgba(0, 0, 0, 0.55), -3px -3px 8px rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.15s, transform 0.15s, color 0.15s;
+}
+
+.neu-btn:hover:not(:disabled) {
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 6px 6px 14px rgba(0, 0, 0, 0.6), -4px -4px 11px rgba(255, 255, 255, 0.08);
+}
+
+.neu-btn:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.6), inset -2px -2px 6px rgba(255, 255, 255, 0.05);
+}
+
+.neu-btn:disabled {
+  box-shadow: none;
 }
 
 .note {
@@ -203,6 +270,19 @@ h2:first-child {
 
 .name {
   width: 100%;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
+}
+
+.name:focus {
+  outline: none;
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 .problems {
@@ -214,7 +294,9 @@ h2:first-child {
 .start {
   width: 100%;
   margin-top: 12px;
-  padding: 8px;
+  padding: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 button:disabled {

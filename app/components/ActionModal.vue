@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BattleState, PendingInput, Unit } from '#shared/types'
 import { SPELLS } from '#shared/data/spells'
+import { isSvgIcon } from '#shared/engine/icons'
 import { defOf, itemName } from '#shared/engine/items'
 import { allChoices, ACTIONS, choiceKey, contextFor, toTarget } from '#shared/engine/actions'
 import { halfMove, isEngagedAt, maOf } from '#shared/engine/combat'
@@ -95,7 +96,10 @@ const title = computed(() => {
       <ul v-if="pending?.kind === 'chooseAction'" class="options">
         <li v-for="a in actions" :key="a.key">
           <button :disabled="!!a.reason" class="option" @click="emit('action', a.key)">
-            <span class="icon">{{ a.icon }}</span>
+            <span class="icon">
+              <GameIcon v-if="isSvgIcon(a.icon)" :svg="a.icon" :label="a.label" :size="22" />
+              <template v-else>{{ a.icon }}</template>
+            </span>
             <span class="text">
               <span class="label">{{ a.label }}</span>
               <span class="hint">{{ a.hint }}</span>

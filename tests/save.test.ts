@@ -45,6 +45,29 @@ describe('loading saves', () => {
     expect(new Set(save.run!.shop!.stock.map(i => i.uid)).size).toBe(2)
   })
 
+  it('renames version 3 talent ids to the ids made from their names', () => {
+    const v3 = {
+      schemaVersion: 3,
+      run: {
+        screen: 'battle',
+        character: { id: 'h', name: 'Hero', talents: [{ id: 'toughness', rank: 1 }, { id: 'sword', rank: 1 }], plannedTalents: ['toughness2', 'unarmed1'] },
+        battle: {
+          units: { h: { uid: 'h', talents: [{ id: 'unarmed5', rank: 1 }], effects: [{ uid: 'e', source: { kind: 'talent', id: 'unarmed3', name: 'Unarmed Combat III' } }] } },
+          killedBy: { unitUid: 'h', name: 'Hero', talents: ['toughness', 'sword'] }
+        }
+      },
+      graveyard: [],
+      settings: { animationSpeed: 1, logLimit: 2000 }
+    }
+    const { save, backup } = loadSave(JSON.stringify(v3), empty)
+    expect(backup).toBeUndefined()
+    expect(save.run!.character.talents.map(t => t.id)).toEqual(['toughnessI', 'sword'])
+    expect(save.run!.character.plannedTalents).toEqual(['toughnessII', 'unarmedCombatI'])
+    expect(save.run!.battle!.units.h!.talents.map(t => t.id)).toEqual(['unarmedCombatV'])
+    expect(save.run!.battle!.units.h!.effects[0]!.source.id).toBe('unarmedCombatIII')
+    expect(save.run!.battle!.killedBy!.talents).toEqual(['toughnessI', 'sword'])
+  })
+
   it('keeps an unreadable save as a backup instead of losing it', () => {
     expect(loadSave('{not json', empty)).toEqual({ save: empty(), backup: '{not json' })
     const newer = JSON.stringify({ schemaVersion: SCHEMA_VERSION + 1, graveyard: [] })

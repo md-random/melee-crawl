@@ -17,7 +17,6 @@ export interface TalentNode {
   name: string
   description: string
   for: TalentAudience
-  official: boolean            // true = from TFT 2019 talent list, false = ours
   category: TalentCategory
   icon: string
 

@@ -11,6 +11,8 @@ const props = defineProps<{ battle: BattleState; events: GameEvent[] }>()
 
 const tab = ref<'attacks' | 'log'>('attacks')
 
+const logNewestFirst = computed(() => [...props.events].reverse())
+
 type Roll = Extract<GameEvent, { kind: 'roll' }>
 
 interface Exchange {
@@ -75,7 +77,7 @@ const partsText = (r?: Roll): string => {
     </div>
 
     <ol v-if="tab === 'log'" class="resolution log">
-      <li v-for="e in events" :key="e.at"><span class="muted">R{{ e.round }}</span> {{ describeEvent(battle, e) }}</li>
+      <li v-for="e in logNewestFirst" :key="e.at"><span class="muted">R{{ e.round }}</span> {{ describeEvent(battle, e) }}</li>
     </ol>
 
     <div v-else class="resolution">
@@ -137,28 +139,50 @@ const partsText = (r?: Roll): string => {
 }
 
 .tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
+}
+
+.tabs button {
+  padding: 6px 20px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  transition: box-shadow 0.15s, color 0.15s;
+}
+
+.tabs button:hover {
+  color: var(--fg);
 }
 
 .tabs .active {
-  border-color: var(--accent);
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: 3px 3px 7px rgba(0, 0, 0, 0.55), -2px -2px 6px rgba(255, 255, 255, 0.06);
 }
 
 .resolution {
   height: 190px;
   overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.55), inset -3px -3px 8px rgba(255, 255, 255, 0.05);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, color-mix(in srgb, var(--accent) 55%, var(--muted)) 68.89%, var(--panel)) rgba(0, 0, 0, 0.35);
 }
 
 .turn {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 6px 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
   font-size: 0.9rem;
@@ -236,11 +260,12 @@ header {
 .die {
   display: inline-grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   margin: 0 1px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 5px;
+  background: var(--panel);
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.6), inset -1px -1px 3px rgba(255, 255, 255, 0.05);
   font-weight: 600;
   font-size: 0.75rem;
 }

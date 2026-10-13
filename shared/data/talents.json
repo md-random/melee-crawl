@@ -1,0 +1,691 @@
+[
+  {
+    "id": "dagger",
+    "name": "Dagger",
+    "description": "Use daggers without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🗡",
+    "branch": "blades",
+    "pos": {
+      "col": 2,
+      "row": 0
+    },
+    "iqCost": 1,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "sword",
+    "name": "Sword",
+    "description": "Use swords without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "⚔",
+    "branch": "blades",
+    "pos": {
+      "col": 1,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 7,
+    "costOverrides": [
+      {
+        "ifHasTalent": "dagger",
+        "iqCost": 1
+      }
+    ],
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "fencer",
+    "name": "Fencer",
+    "description": "Effect not set yet. Armor can't bring adjusted DX below 12 when using it. ITL p. 40.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🤺",
+    "branch": "blades",
+    "pos": {
+      "col": 1,
+      "row": 1
+    },
+    "iqCost": 3,
+    "minIQ": 11,
+    "requires": {
+      "all": [
+        {
+          "talent": "sword"
+        },
+        {
+          "attr": "DX",
+          "min": 12
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "masterFencer",
+    "name": "Master Fencer",
+    "description": "Effect not set yet. ITL p. 42.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🤺",
+    "branch": "blades",
+    "pos": {
+      "col": 1,
+      "row": 2
+    },
+    "iqCost": 3,
+    "minIQ": 13,
+    "requires": {
+      "all": [
+        {
+          "talent": "fencer"
+        },
+        {
+          "attr": "DX",
+          "min": 14
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "ax",
+    "name": "Ax",
+    "description": "Use axes without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🪓",
+    "branch": "heavy",
+    "pos": {
+      "col": 3,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "mace",
+    "name": "Mace",
+    "description": "Use maces, hammers and clubs without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🔨",
+    "branch": "heavy",
+    "pos": {
+      "col": 4,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "poleWeapons",
+    "name": "Pole Weapons",
+    "description": "Use spears, halberds and pikes without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🔱",
+    "branch": "polearms",
+    "pos": {
+      "col": 5,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "bow",
+    "name": "Bow",
+    "description": "Use bows without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🏹",
+    "branch": "ranged",
+    "pos": {
+      "col": 7,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "crossbow",
+    "name": "Crossbow",
+    "description": "Use crossbows without penalty.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🎯",
+    "branch": "ranged",
+    "pos": {
+      "col": 8,
+      "row": 0
+    },
+    "iqCost": 1,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "thrownWeapons",
+    "name": "Thrown Weapons",
+    "description": "Throw weapons effectively.",
+    "for": "both",
+    "category": "weapon",
+    "icon": "🌀",
+    "branch": "ranged",
+    "pos": {
+      "col": 6,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 8,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "missileWeapons",
+    "name": "Missile Weapons",
+    "description": "Effect not set yet. Can be taken up to 3 times. ITL p. 38.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🎯",
+    "branch": "ranged",
+    "pos": {
+      "col": 7.5,
+      "row": 1
+    },
+    "iqCost": 1,
+    "minIQ": 9,
+    "requires": {
+      "any": [
+        {
+          "talent": "bow"
+        },
+        {
+          "talent": "crossbow"
+        }
+      ]
+    },
+    "maxRanks": 3,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "shield",
+    "name": "Shield",
+    "description": "Use a shield without penalty.",
+    "for": "both",
+    "category": "defense",
+    "icon": "🛡",
+    "branch": "defense",
+    "pos": {
+      "col": 9,
+      "row": 0
+    },
+    "iqCost": 1,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "shieldExpertise",
+    "name": "Shield Expertise",
+    "description": "Expert use of a shield.",
+    "for": "both",
+    "category": "defense",
+    "icon": "🛡",
+    "branch": "defense",
+    "pos": {
+      "col": 9,
+      "row": 1
+    },
+    "iqCost": 2,
+    "minIQ": 10,
+    "requires": {
+      "talent": "shield"
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "toughnessI",
+    "name": "Toughness I",
+    "description": "Shrug off damage.",
+    "for": "both",
+    "category": "defense",
+    "icon": "💪",
+    "branch": "defense",
+    "pos": {
+      "col": 10,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 9,
+    "requires": {
+      "attr": "ST",
+      "min": 12
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "toughnessII",
+    "name": "Toughness II",
+    "description": "Shrug off damage.",
+    "for": "both",
+    "category": "defense",
+    "icon": "💪",
+    "branch": "defense",
+    "pos": {
+      "col": 10,
+      "row": 1
+    },
+    "iqCost": 2,
+    "minIQ": 9,
+    "requires": {
+      "all": [
+        {
+          "talent": "toughnessI"
+        },
+        {
+          "attr": "ST",
+          "min": 14
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "brawling",
+    "name": "Brawling",
+    "description": "Fight effectively without weapons.",
+    "for": "both",
+    "category": "attack",
+    "icon": "👊",
+    "branch": "unarmed",
+    "pos": {
+      "col": 0,
+      "row": 0
+    },
+    "iqCost": 1,
+    "minIQ": 7,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "unarmedCombatI",
+    "name": "Unarmed Combat I",
+    "description": "Effect not set yet. ITL p. 39.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🥋",
+    "branch": "unarmed",
+    "pos": {
+      "col": 0,
+      "row": 1
+    },
+    "iqCost": 1,
+    "minIQ": 10,
+    "requires": {
+      "talent": "brawling"
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "unarmedCombatII",
+    "name": "Unarmed Combat II",
+    "description": "Effect not set yet. ITL p. 41.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🥋",
+    "branch": "unarmed",
+    "pos": {
+      "col": 0,
+      "row": 2
+    },
+    "iqCost": 1,
+    "minIQ": 11,
+    "requires": {
+      "all": [
+        {
+          "talent": "unarmedCombatI"
+        },
+        {
+          "attr": "DX",
+          "min": 11
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "unarmedCombatIII",
+    "name": "Unarmed Combat III",
+    "description": "Effect not set yet. ITL p. 42.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🥋",
+    "branch": "unarmed",
+    "pos": {
+      "col": 0,
+      "row": 3
+    },
+    "iqCost": 2,
+    "minIQ": 12,
+    "requires": {
+      "all": [
+        {
+          "talent": "unarmedCombatII"
+        },
+        {
+          "attr": "DX",
+          "min": 12
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "unarmedCombatIV",
+    "name": "Unarmed Combat IV",
+    "description": "Effect not set yet. ITL p. 43.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🥋",
+    "branch": "unarmed",
+    "pos": {
+      "col": 0,
+      "row": 4
+    },
+    "iqCost": 3,
+    "minIQ": 13,
+    "requires": {
+      "all": [
+        {
+          "talent": "unarmedCombatIII"
+        },
+        {
+          "attr": "DX",
+          "min": 13
+        },
+        {
+          "attr": "ST",
+          "min": 11
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "unarmedCombatV",
+    "name": "Unarmed Combat V",
+    "description": "Effect not set yet. ITL p. 44.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🥋",
+    "branch": "unarmed",
+    "pos": {
+      "col": 0,
+      "row": 5
+    },
+    "iqCost": 4,
+    "minIQ": 14,
+    "requires": {
+      "all": [
+        {
+          "talent": "unarmedCombatIV"
+        },
+        {
+          "attr": "DX",
+          "min": 14
+        },
+        {
+          "attr": "ST",
+          "min": 12
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "running",
+    "name": "Running",
+    "description": "Move faster.",
+    "for": "both",
+    "category": "movement",
+    "icon": "🏃",
+    "branch": "mobility",
+    "pos": {
+      "col": 11,
+      "row": 0
+    },
+    "iqCost": 2,
+    "minIQ": 8,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "alertness",
+    "name": "Alertness",
+    "description": "Harder to surprise; notices more.",
+    "for": "both",
+    "category": "utility",
+    "icon": "👁",
+    "branch": "mobility",
+    "pos": {
+      "col": 11,
+      "row": 1
+    },
+    "iqCost": 2,
+    "minIQ": 9,
+    "requires": {
+      "talent": "running"
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "acrobatics",
+    "name": "Acrobatics",
+    "description": "Effect not set yet. ITL p. 38.",
+    "for": "both",
+    "category": "movement",
+    "icon": "🤸",
+    "branch": "mobility",
+    "pos": {
+      "col": 11,
+      "row": 2
+    },
+    "iqCost": 2,
+    "minIQ": 10,
+    "requires": {
+      "all": [
+        {
+          "talent": "alertness"
+        },
+        {
+          "attr": "DX",
+          "min": 12
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "twoWeapons",
+    "name": "Two Weapons",
+    "description": "A weapon in each hand: two of the same, or two different ones if you know both talents.",
+    "for": "both",
+    "category": "attack",
+    "icon": "⚔",
+    "branch": "mastery",
+    "pos": {
+      "col": 4,
+      "row": 1
+    },
+    "iqCost": 2,
+    "minIQ": 11,
+    "requires": {
+      "all": [
+        {
+          "attr": "DX",
+          "min": 11
+        },
+        {
+          "any": [
+            {
+              "talent": "sword"
+            },
+            {
+              "talent": "dagger"
+            },
+            {
+              "talent": "ax"
+            },
+            {
+              "talent": "mace"
+            },
+            {
+              "talent": "poleWeapons"
+            },
+            {
+              "talent": "thrownWeapons"
+            }
+          ]
+        }
+      ]
+    },
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "weaponExpertise",
+    "name": "Weapon Expertise",
+    "description": "Expert with one weapon type. Taken once per weapon talent.",
+    "for": "both",
+    "category": "attack",
+    "icon": "⭐",
+    "branch": "mastery",
+    "pos": {
+      "col": 5.5,
+      "row": 1
+    },
+    "iqCost": 3,
+    "minIQ": 11,
+    "requires": {
+      "attr": "DX",
+      "min": 12
+    },
+    "maxRanks": 1,
+    "perWeapon": true,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "weaponMastery",
+    "name": "Weapon Mastery",
+    "description": "Effect not set yet. Taken once per weapon talent. ITL p. 43.",
+    "for": "both",
+    "category": "attack",
+    "icon": "🌟",
+    "branch": "mastery",
+    "pos": {
+      "col": 5.5,
+      "row": 2
+    },
+    "iqCost": 3,
+    "minIQ": 13,
+    "requires": {
+      "attr": "DX",
+      "min": 14
+    },
+    "maxRanks": 1,
+    "perWeapon": true,
+    "weaponPrereq": "weaponExpertise",
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "quickDraw",
+    "name": "Quick-Draw",
+    "description": "Effect not set yet. Taken once per weapon talent. ITL p. 36.",
+    "for": "both",
+    "category": "utility",
+    "icon": "⚡",
+    "branch": "mastery",
+    "pos": {
+      "col": 2.5,
+      "row": 1
+    },
+    "iqCost": 1,
+    "minIQ": 8,
+    "maxRanks": 1,
+    "perWeapon": true,
+    "effects": [],
+    "unverified": true
+  },
+  {
+    "id": "tactics",
+    "name": "Tactics",
+    "description": "Effect not set yet. ITL p. 40.",
+    "for": "both",
+    "category": "utility",
+    "icon": "♟",
+    "branch": "tactics",
+    "pos": {
+      "col": 12,
+      "row": 0
+    },
+    "iqCost": 1,
+    "minIQ": 11,
+    "maxRanks": 1,
+    "effects": [],
+    "unverified": true
+  }
+]

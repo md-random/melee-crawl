@@ -4,6 +4,7 @@ import { ARCHETYPES } from '#shared/data/creatures'
 import { TALENTS } from '#shared/data/talents'
 import { TRAITS } from '#shared/data/traits'
 import { toTarget } from '#shared/engine/actions'
+import { isSvgIcon } from '#shared/engine/icons'
 import type { PlayerInput } from '#shared/engine/battle'
 import {
   adjDxOf, directionTo, hitsStoppedOf, isAlive, mapOf, maOf, movementObstructions, obstructions, readyAttack, unitLoadout
@@ -17,6 +18,7 @@ import { useGameStore } from '~/stores/game'
 // Battle screen: shows the engine's state and sends the player's choices to it.
 
 const game = useGameStore()
+const isDev = import.meta.dev
 const inCamp = game.screen === 'camp'
 if (!game.character) await navigateTo('/create')
 else if (inCamp) await navigateTo('/camp')
@@ -74,12 +76,12 @@ const CHIP_COLORS: Record<TalentCategory, string> = {
 const chips = (owned: OwnedTalent[]) => owned.map(t => {
   const node = TALENTS[t.id]!
   const suffix = t.weaponTalent ? ` (${TALENTS[t.weaponTalent]?.name})` : t.rank > 1 ? ` ${t.rank}` : ''
-  return { key: `${t.id}:${t.weaponTalent ?? ''}`, label: `${node.icon} ${node.name}${suffix}`, title: node.description, color: CHIP_COLORS[node.category] }
+  return { key: `${t.id}:${t.weaponTalent ?? ''}`, icon: node.icon, label: `${node.name}${suffix}`, title: node.description, color: CHIP_COLORS[node.category] }
 })
 
 const traitChips = (u: Unit) => u.traits.map(t => {
   const trait = TRAITS[t.id]
-  return { key: t.id, label: `${trait?.icon ?? ''} ${trait?.name ?? t.id}${t.rank > 1 ? ` ${t.rank}` : ''}`, title: trait?.description ?? '' }
+  return { key: t.id, icon: trait?.icon ?? '', label: `${trait?.name ?? t.id}${t.rank > 1 ? ` ${t.rank}` : ''}`, title: trait?.description ?? '' }
 })
 
 // ---------- dice box ----------
@@ -185,11 +187,14 @@ const abandon = () => {
 <template>
   <div v-if="battle && map && hero" class="page">
     <div class="layout">
-      <aside class="side">
-        <button class="abandon" @click="abandon">Abandon hero</button>
+      <aside class="side box">
+        <button class="neu-btn abandon" @click="abandon">Abandon hero</button>
 
-        <section class="box">
-          <h2>Dice</h2>
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Dice</h2>
+            <span class="col-line" />
+          </header>
           <p v-if="!recentRolls.length" class="muted">No rolls yet</p>
           <ul v-else class="rolls">
             <li v-for="r in recentRolls" :key="r.at">
@@ -206,8 +211,11 @@ const abandon = () => {
           </ul>
         </section>
 
-        <section class="box">
-          <h2>Hero</h2>
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Hero</h2>
+            <span class="col-line" />
+          </header>
           <div class="hero">
             <div class="portrait">⚔</div>
             <dl>
@@ -225,12 +233,19 @@ const abandon = () => {
           <p class="gear">{{ attackText(hero) }} · {{ unitLoadout(hero).armor?.name ?? 'No armor' }}</p>
           <div class="chips">
             <span v-for="s in hero.statuses" :key="s" class="chip status">{{ s }}</span>
-            <span v-for="c in chips(hero.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">{{ c.label }}</span>
+            <span v-for="c in chips(hero.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">
+              <GameIcon v-if="isSvgIcon(c.icon)" :svg="c.icon" :size="12" color="#fff" />
+              <template v-else>{{ c.icon }}</template>
+              {{ c.label }}
+            </span>
           </div>
         </section>
 
-        <section class="box">
-          <h2>Opponents</h2>
+        <section class="col-panel">
+          <header class="col-head">
+            <h2>Opponents</h2>
+            <span class="col-line" />
+          </header>
           <div class="tiles">
             <div v-for="o in opponents" :key="o.uid" :class="['tile', { dead: !isAlive(o), active: o.uid === battle.activeUnit }]">
               <div class="portrait small">👹</div>
@@ -244,17 +259,28 @@ const abandon = () => {
               <div class="tile-stats">⚔ {{ attackText(o) }}<template v-if="unitLoadout(o).armor"> · {{ unitLoadout(o).armor!.name }}</template></div>
               <div class="chips">
                 <span v-for="s in o.statuses" :key="s" class="chip status">{{ s }}</span>
-                <span v-for="t in traitChips(o)" :key="t.key" class="chip trait" :title="t.title">{{ t.label }}</span>
-                <span v-for="c in chips(o.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">{{ c.label }}</span>
+                <span v-for="t in traitChips(o)" :key="t.key" class="chip trait" :title="t.title">
+                  <GameIcon v-if="isSvgIcon(t.icon)" :svg="t.icon" :size="12" color="#fff" />
+                  <template v-else>{{ t.icon }}</template>
+                  {{ t.label }}
+                </span>
+                <span v-for="c in chips(o.talents)" :key="c.key" class="chip" :title="c.title" :style="{ background: c.color }">
+                  <GameIcon v-if="isSvgIcon(c.icon)" :svg="c.icon" :size="12" color="#fff" />
+                  <template v-else>{{ c.icon }}</template>
+                  {{ c.label }}
+                </span>
               </div>
             </div>
           </div>
         </section>
       </aside>
 
-      <section class="board">
-        <div class="status-line">
-          Battle {{ battle.battleNo }} · Round {{ battle.round }} · {{ PHASE_NAMES[battle.phase] }}
+      <section class="board box">
+        <div class="board-head">
+          <div class="status-line">
+            Battle {{ battle.battleNo }} · Round {{ battle.round }} · {{ PHASE_NAMES[battle.phase] }}
+          </div>
+          <NuxtLink v-if="isDev" to="/admin" class="admin-link" title="Admin">⚙</NuxtLink>
         </div>
         <HexCanvas
           :map="map"
@@ -271,11 +297,11 @@ const abandon = () => {
         <ResolutionPanel :battle="battle" :events="events">
           <div v-if="battle.phase === 'victory'" class="banner win">
             <span>Victory!<template v-if="battle.rewards"> +{{ battle.rewards.xp }} XP · +{{ battle.rewards.gold }} gold</template></span>
-            <button @click="toCamp">To camp</button>
+            <button class="neu-btn" @click="toCamp">To camp</button>
           </div>
           <div v-else-if="battle.phase === 'defeat'" class="banner lose">
             {{ hero.name }} has fallen, killed by {{ killerName }}.
-            <button @click="toGraveyard">To the graveyard</button>
+            <button class="neu-btn" @click="toGraveyard">To the graveyard</button>
           </div>
           <template v-else>
             <p class="prompt">{{ prompt }}</p>
@@ -303,6 +329,7 @@ const abandon = () => {
 }
 
 .layout {
+  --panel: #2b2e34;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 16px;
@@ -320,20 +347,61 @@ const abandon = () => {
   gap: 16px;
 }
 
-.box,
-.board {
+.box {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
 }
 
-.box h2 {
-  font-size: 0.8rem;
+.col-panel {
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: inset 4px 4px 10px rgba(0, 0, 0, 0.55), inset -3px -3px 8px rgba(255, 255, 255, 0.05);
+}
+
+.col-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.col-head h2 {
+  margin: 0;
+  color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  font-size: 0.95rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin: 0 0 8px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.col-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 45%, var(--muted)), transparent);
+}
+
+.neu-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 4px 4px 9px rgba(0, 0, 0, 0.55), -3px -3px 8px rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.15s, transform 0.15s, color 0.15s;
+}
+
+.neu-btn:hover:not(:disabled) {
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 6px 6px 14px rgba(0, 0, 0, 0.6), -4px -4px 11px rgba(255, 255, 255, 0.08);
+}
+
+.neu-btn:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.6), inset -2px -2px 6px rgba(255, 255, 255, 0.05);
 }
 
 .hero {
@@ -348,9 +416,9 @@ const abandon = () => {
   display: grid;
   place-items: center;
   font-size: 2rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
 }
 
 .portrait.small {
@@ -391,9 +459,10 @@ dd {
 .tile {
   display: grid;
   gap: 4px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 255, 255, 0.05);
 }
 
 .tile-name {
@@ -408,26 +477,24 @@ dd {
 
 .bar-st {
   width: 100%;
-  height: 6px;
-  background: var(--bg);
-  border-radius: 3px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.6), inset -1px -1px 3px rgba(255, 255, 255, 0.05);
   overflow: hidden;
 }
 
 .bar-st span {
   display: block;
   height: 100%;
+  border-radius: 999px;
   background: #b8382c;
 }
 
 .abandon {
   width: 100%;
-  padding: 6px;
+  padding: 7px;
   color: #e07a6a;
-}
-
-.abandon:hover {
-  border-color: #e07a6a;
 }
 
 .chips {
@@ -439,8 +506,8 @@ dd {
 
 .chip {
   font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
   color: #fff;
   cursor: help;
 }
@@ -454,10 +521,41 @@ dd {
   color: var(--muted);
 }
 
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .status-line {
   font-size: 0.85rem;
   color: var(--muted);
-  margin-bottom: 8px;
+}
+
+.admin-link {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 3px 3px 7px rgba(0, 0, 0, 0.55), -2px -2px 6px rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 1.05rem;
+  text-decoration: none;
+  transition: box-shadow 0.15s, transform 0.15s, color 0.15s;
+}
+
+.admin-link:hover {
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.admin-link:active {
+  transform: none;
+  box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.6), inset -2px -2px 6px rgba(255, 255, 255, 0.05);
 }
 
 .rolls {
@@ -485,11 +583,11 @@ dd {
 .die {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.6), inset -1px -1px 3px rgba(255, 255, 255, 0.05);
   font-weight: 600;
 }
 
@@ -520,7 +618,10 @@ dd {
 }
 
 .tile.active {
-  border-color: var(--accent);
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 75%, transparent);
 }
 
 .chip.status {

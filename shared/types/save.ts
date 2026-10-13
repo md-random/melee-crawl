@@ -5,7 +5,7 @@ import type { Encounter } from './creatures'
 import type { ItemInstance } from './items'
 
 /** Bump with a migration in engine/save.ts whenever the save format changes. */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 /** NetHack-style grave record; the leaderboard is a sorted list of these. */
 export interface Tombstone {
